@@ -6,7 +6,7 @@
  * @author    LibreCode <contact@librecode.coop>
  * @license   GPL-2.0+
  * @link      http://github.com/libresign/libresign-wp-customizations
- * @copyright 2021 LibreCode
+ * @copyright 2025 LibreCode
  *
  * @wordpress-plugin
  * Plugin Name:       LibreSign customizations
