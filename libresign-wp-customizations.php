@@ -187,3 +187,17 @@ function libresign_config_page() {
     </div>
     <?php
 }
+
+/**
+ * Return the WordPress version to be possible use the right assets when deploy
+ */
+add_action('rest_api_init', function () {
+    register_rest_route('libresign/v1', '/version', [
+        'methods' => 'GET',
+        'callback' => function () {
+            global $wp_version;
+            return rest_ensure_response(['version' => $wp_version]);
+        },
+        'permission_callback' => '__return_true',
+    ]);
+});
