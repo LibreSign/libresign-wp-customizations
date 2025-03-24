@@ -96,7 +96,7 @@ function libresign_trigger_github_action_on_publish($new_status, $old_status, $p
             if ($code === 204) {
                 $post_data = array_merge($post_data, [
                     'type'    => 'success',
-                    'message' => 'Ação de deploy enviada com sucesso.',
+                    'message' => 'Ação de deploy enviada com sucesso. Acompanhe <a href="https://github.com/' . $organizationRepository.'/actions" target="_blank">aqui</a>',
                 ]);
             } else {
                 $body = json_decode($response['body'], true);
