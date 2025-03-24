@@ -79,18 +79,87 @@ function libresign_trigger_github_action_on_publish($new_status, $old_status, $p
             ],
             'timeout'     => 15,
         ]);
+
+        $post_data = [
+            'post_id'    => $post->ID,
+            'post_title' => get_the_title($post->ID),
+            'language'   => function_exists('pll_get_post_language') ? pll_get_post_language($post->ID) : 'indefinido',
+        ];
+
+        if (is_wp_error($response)) {
+            $post_data = array_merge($post_data, [
+                'type'    => 'error',
+                'message' => $response->get_error_message(),
+            ]);
+        } else {
+            $code = wp_remote_retrieve_response_code($response);
+            if ($code === 204) {
+                $post_data = array_merge($post_data, [
+                    'type'    => 'success',
+                    'message' => 'Ação de deploy enviada com sucesso.',
+                ]);
+            } else {
+                $body = json_decode($response['body'], true);
+                $post_data = array_merge($post_data, [
+                    'type'    => 'error',
+                    'message' => "Erro ao acionar deploy.<br />Código: <strong>$code</strong>.<br />Message: <strong>{$body['message']}</strong>",
+                ]);
+            }
+        }
+
+        $transient_key = 'libresign_github_action_status_' . get_current_user_id();
+        $status_list = get_transient($transient_key);
+        if (!is_array($status_list)) {
+            $status_list = [];
+        }
+        $status_list[] = $post_data;
+        set_transient($transient_key, $status_list, 60);
     }
 }
 add_action('transition_post_status', 'libresign_trigger_github_action_on_publish', 10, 3);
 
-add_filter('plugin_action_links_' . plugin_basename(__FILE__), 'libresign_add_settings_link');
+/**
+ * Display the status after edit
+ */
+function libresign_show_github_action_status_notice() {
+    $user_id = get_current_user_id();
+    $transient_key = 'libresign_github_action_status_' . $user_id;
+    $status_list = get_transient($transient_key);
+    if (!is_array($status_list)) {
+        return;
+    }
+    delete_transient($transient_key);
+    foreach ($status_list as $status) {
+        $class = ($status['type'] === 'success') ? 'notice-success' : 'notice-error';
+        $post_info = sprintf(
+            <<<MESSAGE
+            {$status['message']}<br />
+            Post: <strong>%s</strong><br />
+            ID: %d<br />
+            Idioma: <strong>%s</strong>
+            MESSAGE,
+            esc_html($status['post_title']),
+            intval($status['post_id']),
+            esc_html($status['language'])
+        );
+        echo "<div class='notice $class is-dismissible'>$post_info</div>";
+    }
+}
+add_action('admin_notices', 'libresign_show_github_action_status_notice');
 
+/**
+ * Settings link ad plugins page
+ */
+add_filter('plugin_action_links_' . plugin_basename(__FILE__), 'libresign_add_settings_link');
 function libresign_add_settings_link($links) {
     $settings_link = '<a href="options-general.php?page=libresign-config">Configurações</a>';
     array_unshift($links, $settings_link);
     return $links;
 }
 
+/**
+ * Settings page
+ */
 add_action('admin_menu', function () {
     add_options_page(
         'Configurações do LibreSign',
@@ -100,26 +169,6 @@ add_action('admin_menu', function () {
         'libresign_config_page'
     );
 });
-
-add_action('admin_init', function () {
-    register_setting('libresign_settings_group', 'libresign_github_deploy_token', [
-        'type' => 'string',
-        'sanitize_callback' => function ($value) {
-            if (!empty(trim($value))) {
-                $key = hash('sha256', AUTH_KEY . SECURE_AUTH_SALT);
-                $iv = substr(hash('sha256', NONCE_SALT), 0, 16);
-                return base64_encode(openssl_encrypt($value, 'AES-256-CBC', $key, 0, $iv));
-            }
-            return get_option('libresign_github_deploy_token');
-        },
-    ]);
-    register_setting('libresign_settings_group', 'libresign_github_deploy_organization_repository', [
-        'type' => 'string',
-        'sanitize_callback' => 'sanitize_text_field',
-    ]);
-});
-
-
 function libresign_config_page() {
     if (!current_user_can('manage_options')) {
         wp_die(__('Você não tem permissão para acessar esta página.'));
@@ -158,8 +207,8 @@ function libresign_config_page() {
                                 Note: Deploy trigger for LibreSign site
                                 Expiration: (escolha conforme o necessário)
                                 Select scopes:
-                                    Marque: repo ✅
-                                    Isso já cobre repo:status, repo_deployment, public_repo, etc.
+                                    repo:
+                                        repo_deployment, public_repo
 
                             Clique em Generate token e copie o token (você não poderá vê-lo novamente).
 
@@ -187,6 +236,27 @@ function libresign_config_page() {
     </div>
     <?php
 }
+
+/**
+ * Encode the deploy token at database
+ */
+add_action('admin_init', function () {
+    register_setting('libresign_settings_group', 'libresign_github_deploy_token', [
+        'type' => 'string',
+        'sanitize_callback' => function ($value) {
+            if (!empty(trim($value))) {
+                $key = hash('sha256', AUTH_KEY . SECURE_AUTH_SALT);
+                $iv = substr(hash('sha256', NONCE_SALT), 0, 16);
+                return base64_encode(openssl_encrypt($value, 'AES-256-CBC', $key, 0, $iv));
+            }
+            return get_option('libresign_github_deploy_token');
+        },
+    ]);
+    register_setting('libresign_settings_group', 'libresign_github_deploy_organization_repository', [
+        'type' => 'string',
+        'sanitize_callback' => 'sanitize_text_field',
+    ]);
+});
 
 /**
  * Return the WordPress version to be possible use the right assets when deploy
