@@ -23,6 +23,8 @@
 
 defined( 'ABSPATH' ) || exit;
 
+const LIBRESIGN_WP_REWRITE_VERSION = '2';
+
 
 /**
  * Get gravatar
@@ -257,6 +259,74 @@ add_action('admin_init', function () {
         'sanitize_callback' => 'sanitize_text_field',
     ]);
 });
+
+/**
+ * Register WooCommerce account endpoints at the site root when the account page is the front page.
+ */
+function libresign_register_root_my_account_endpoints() {
+    if ( ! function_exists( 'wc_get_page_id' ) || ! function_exists( 'WC' ) ) {
+        return;
+    }
+
+    $myaccount_page_id = (int) wc_get_page_id( 'myaccount' );
+    $front_page_id     = (int) get_option( 'page_on_front' );
+
+    if ( $myaccount_page_id <= 0 || $myaccount_page_id !== $front_page_id ) {
+        return;
+    }
+
+    $query_vars = WC()->query->get_query_vars();
+
+    foreach ( $query_vars as $query_var ) {
+        if ( empty( $query_var ) ) {
+            continue;
+        }
+
+        add_rewrite_endpoint( $query_var, EP_ROOT );
+        add_rewrite_rule(
+            '^' . preg_quote( $query_var, '/' ) . '(?:/(.*))?/?$',
+            'index.php?page_id=' . $myaccount_page_id . '&' . $query_var . '=$matches[1]',
+            'top'
+        );
+    }
+
+    if ( function_exists( 'pll_languages_list' ) ) {
+        $languages = pll_languages_list( [ 'fields' => 'slug' ] );
+
+        if ( is_array( $languages ) && ! empty( $languages ) ) {
+            $language_pattern = implode( '|', array_map( 'preg_quote', $languages ) );
+
+            foreach ( $query_vars as $query_var ) {
+                if ( empty( $query_var ) ) {
+                    continue;
+                }
+
+                add_rewrite_rule(
+                    '^(' . $language_pattern . ')/' . preg_quote( $query_var, '/' ) . '(?:/(.*))?/?$',
+                    'index.php?lang=$matches[1]&page_id=' . $myaccount_page_id . '&' . $query_var . '=$matches[2]',
+                    'top'
+                );
+            }
+        }
+    }
+}
+add_action( 'init', 'libresign_register_root_my_account_endpoints', 20 );
+
+/**
+ * Flush rewrite rules once after endpoint registration changes.
+ */
+function libresign_maybe_flush_root_my_account_endpoints() {
+    $stored_version = get_option( 'libresign_root_my_account_rewrite_version', '' );
+
+    if ( LIBRESIGN_WP_REWRITE_VERSION === $stored_version ) {
+        return;
+    }
+
+    libresign_register_root_my_account_endpoints();
+    flush_rewrite_rules( false );
+    update_option( 'libresign_root_my_account_rewrite_version', LIBRESIGN_WP_REWRITE_VERSION );
+}
+add_action( 'init', 'libresign_maybe_flush_root_my_account_endpoints', 99 );
 
 /**
  * Return the WordPress version to be possible use the right assets when deploy
