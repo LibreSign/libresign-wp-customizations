@@ -23,7 +23,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-const LIBRESIGN_WP_REWRITE_VERSION = '3';
+const LIBRESIGN_WP_REWRITE_VERSION = '4';
 
 
 /**
@@ -311,6 +311,69 @@ function libresign_register_root_my_account_endpoints() {
     }
 }
 add_action( 'init', 'libresign_register_root_my_account_endpoints', 20 );
+
+/**
+ * Register explicit checkout endpoint rewrites so order-pay and order-received are not parsed as posts.
+ */
+function libresign_register_checkout_endpoints() {
+    if ( ! function_exists( 'wc_get_page_id' ) || ! function_exists( 'WC' ) ) {
+        return;
+    }
+
+    $checkout_page_id = (int) wc_get_page_id( 'checkout' );
+
+    if ( $checkout_page_id <= 0 ) {
+        return;
+    }
+
+    $checkout_slug = get_post_field( 'post_name', $checkout_page_id );
+
+    if ( empty( $checkout_slug ) ) {
+        return;
+    }
+
+    $query_vars = WC()->query->get_query_vars();
+    $endpoints  = array_intersect_key(
+        $query_vars,
+        array(
+            'order-pay'      => true,
+            'order-received' => true,
+        )
+    );
+
+    foreach ( $endpoints as $key => $query_var ) {
+        if ( empty( $query_var ) ) {
+            continue;
+        }
+
+        add_rewrite_rule(
+            '^' . preg_quote( $checkout_slug, '/' ) . '/' . preg_quote( $query_var, '/' ) . '(?:/(.*))?/?$',
+            'index.php?page_id=' . $checkout_page_id . '&' . $query_var . '=$matches[1]',
+            'top'
+        );
+    }
+
+    if ( function_exists( 'pll_languages_list' ) ) {
+        $languages = pll_languages_list( array( 'fields' => 'slug' ) );
+
+        if ( is_array( $languages ) && ! empty( $languages ) ) {
+            $language_pattern = implode( '|', array_map( 'preg_quote', $languages ) );
+
+            foreach ( $endpoints as $key => $query_var ) {
+                if ( empty( $query_var ) ) {
+                    continue;
+                }
+
+                add_rewrite_rule(
+                    '^(' . $language_pattern . ')/' . preg_quote( $checkout_slug, '/' ) . '/' . preg_quote( $query_var, '/' ) . '(?:/(.*))?/?$',
+                    'index.php?lang=$matches[1]&page_id=' . $checkout_page_id . '&' . $query_var . '=$matches[2]',
+                    'top'
+                );
+            }
+        }
+    }
+}
+add_action( 'init', 'libresign_register_checkout_endpoints', 20 );
 
 /**
  * Flush rewrite rules once after endpoint registration changes.
