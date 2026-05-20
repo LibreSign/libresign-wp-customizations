@@ -351,7 +351,7 @@ function libresign_is_root_my_account_endpoint_request() {
     }
 
     $segments   = explode( '/', $request_path );
-    $first_slug = end( $segments );
+    $first_slug = reset( $segments );
     $query_vars = WC()->query->get_query_vars();
 
     foreach ( $query_vars as $query_var ) {
