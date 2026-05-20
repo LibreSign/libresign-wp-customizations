@@ -23,7 +23,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-const LIBRESIGN_WP_REWRITE_VERSION = '2';
+const LIBRESIGN_WP_REWRITE_VERSION = '3';
 
 
 /**
@@ -327,6 +327,71 @@ function libresign_maybe_flush_root_my_account_endpoints() {
     update_option( 'libresign_root_my_account_rewrite_version', LIBRESIGN_WP_REWRITE_VERSION );
 }
 add_action( 'init', 'libresign_maybe_flush_root_my_account_endpoints', 99 );
+
+/**
+ * Check whether the current request is a root-level My Account endpoint while My Account is the front page.
+ */
+function libresign_is_root_my_account_endpoint_request() {
+    if ( ! function_exists( 'wc_get_page_id' ) || ! function_exists( 'WC' ) ) {
+        return false;
+    }
+
+    $myaccount_page_id = (int) wc_get_page_id( 'myaccount' );
+    $front_page_id     = (int) get_option( 'page_on_front' );
+
+    if ( $myaccount_page_id <= 0 || $myaccount_page_id !== $front_page_id ) {
+        return false;
+    }
+
+    $request_uri  = isset( $_SERVER['REQUEST_URI'] ) ? (string) wp_unslash( $_SERVER['REQUEST_URI'] ) : '';
+    $request_path = trim( (string) wp_parse_url( $request_uri, PHP_URL_PATH ), '/' );
+
+    if ( '' === $request_path ) {
+        return false;
+    }
+
+    $segments   = explode( '/', $request_path );
+    $first_slug = end( $segments );
+    $query_vars = WC()->query->get_query_vars();
+
+    foreach ( $query_vars as $query_var ) {
+        if ( ! empty( $query_var ) && $query_var === $first_slug ) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * Prevent WordPress canonical redirects from collapsing root account endpoints back to the front page.
+ *
+ * When the My Account page is also the front page, requests like /lost-password/ or /payment-methods/
+ * are valid WooCommerce endpoints and should not be redirected to /.
+ */
+function libresign_disable_canonical_redirect_for_root_my_account_endpoints( $redirect_url, $requested_url ) {
+    if ( libresign_is_root_my_account_endpoint_request() ) {
+        return false;
+    }
+
+    return $redirect_url;
+}
+add_filter( 'redirect_canonical', 'libresign_disable_canonical_redirect_for_root_my_account_endpoints', 10, 2 );
+
+/**
+ * Remove generic redirect handlers for root My Account endpoints before they run.
+ */
+function libresign_prevent_root_my_account_endpoint_redirects() {
+    if ( ! libresign_is_root_my_account_endpoint_request() ) {
+        return;
+    }
+
+    remove_action( 'template_redirect', 'redirect_canonical', 10 );
+    remove_action( 'template_redirect', 'wp_old_slug_redirect', 10 );
+    remove_action( 'template_redirect', 'wp_redirect_admin_locations', 1000 );
+    remove_action( 'template_redirect', 'wc_product_canonical_redirect', 5 );
+}
+add_action( 'template_redirect', 'libresign_prevent_root_my_account_endpoint_redirects', 0 );
 
 /**
  * Return the WordPress version to be possible use the right assets when deploy
