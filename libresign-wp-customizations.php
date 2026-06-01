@@ -482,7 +482,8 @@ function libresign_render_nextcloud_account_button() {
     }
 
     printf(
-        '<p class="libresign-nextcloud-account-button" style="margin-top: 1.5rem;"><a class="wp-block-button__link wp-element-button is-style-outline" href="%s" target="_blank" rel="noopener noreferrer">%s</a></p>',
+        '<div class="libresign-nextcloud-account-cta" style="margin-top: 1.5rem; padding: 1rem; border: 1px solid currentColor; border-radius: 0.75rem;"><p style="margin: 0 0 0.75rem 0;">%s</p><p style="margin: 0;"><a class="wp-block-button__link wp-element-button is-style-outline" href="%s" target="_blank" rel="noopener noreferrer">%s</a></p></div>',
+        esc_html__( 'Use as mesmas credenciais do WordPress para acessar o sistema de assinaturas.', 'libresign-wp-customizations' ),
         esc_url( $nextcloud_host ),
         esc_html__( 'Ir para o sistema de assinaturas', 'libresign-wp-customizations' )
     );
