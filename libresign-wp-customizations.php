@@ -15,7 +15,7 @@
  * Version:           0.0.1
  * Author:            LibreCode
  * Author URI:        https://github.com/LibreSign
- * Text Domain:       wp-simple-smtp
+ * Text Domain:       libresign-wp-customizations
  * License:           GPL-2.0+
  * License URI:       http://www.gnu.org/licenses/gpl-2.0.txt
  * GitHub Plugin URI: https://github.com/LibreSign/libresign-wp-customizations
@@ -24,6 +24,17 @@
 defined( 'ABSPATH' ) || exit;
 
 const LIBRESIGN_WP_REWRITE_VERSION = '4';
+
+/**
+ * Load plugin translations.
+ */
+add_action( 'plugins_loaded', function () {
+    load_plugin_textdomain(
+        'libresign-wp-customizations',
+        false,
+        dirname( plugin_basename( __FILE__ ) ) . '/languages'
+    );
+} );
 
 
 /**
@@ -473,7 +484,7 @@ function libresign_render_nextcloud_account_button() {
     printf(
         '<p class="libresign-nextcloud-account-button" style="margin-top: 1.5rem;"><a class="wp-block-button__link wp-element-button is-style-outline" href="%s" target="_blank" rel="noopener noreferrer">%s</a></p>',
         esc_url( $nextcloud_host ),
-        esc_html__( 'Ir para o sistema de assinaturas', 'wp-simple-smtp' )
+        esc_html__( 'Ir para o sistema de assinaturas', 'libresign-wp-customizations' )
     );
 }
 add_action( 'woocommerce_before_account_navigation', 'libresign_render_nextcloud_account_button', 20 );
