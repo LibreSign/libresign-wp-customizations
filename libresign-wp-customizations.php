@@ -23,7 +23,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-const LIBRESIGN_WP_REWRITE_VERSION = '4';
+const LIBRESIGN_WP_REWRITE_VERSION = '5';
 
 /**
  * Load plugin translations.
@@ -196,6 +196,7 @@ function libresign_config_page() {
             do_settings_sections('libresign_settings_group');
             $token = get_option('libresign_github_deploy_token');
             $repository = get_option('libresign_github_deploy_organization_repository');
+            $help_page_id = (int) get_option('libresign_help_page_id');
             ?>
             <table class="form-table">
                 <tr valign="top">
@@ -243,6 +244,22 @@ function libresign_config_page() {
                         <p class="description">Exemplo: <code>LibreSign/site</code></p>
                     </td>
                 </tr>
+
+                <tr valign="top">
+                    <th scope="row">Página de ajuda</th>
+                    <td>
+                        <?php
+                        wp_dropdown_pages([
+                            'name'              => 'libresign_help_page_id',
+                            'selected'          => $help_page_id,
+                            'show_option_none'  => 'Selecionar uma página',
+                            'option_none_value' => '0',
+                            'post_status'       => ['publish', 'draft', 'pending', 'private'],
+                        ]);
+                        ?>
+                        <p class="description">Escolha uma página criada em <strong>Páginas</strong>. O conteúdo dela será exibido em <code>/ajuda</code>.</p>
+                    </td>
+                </tr>
             </table>
             <?php submit_button('Salvar configurações'); ?>
         </form>
@@ -269,6 +286,13 @@ add_action('admin_init', function () {
         'type' => 'string',
         'sanitize_callback' => 'sanitize_text_field',
     ]);
+    register_setting('libresign_settings_group', 'libresign_help_page_id', [
+        'type' => 'integer',
+        'sanitize_callback' => function ($value) {
+            $page_id = (int) $value;
+            return $page_id > 0 ? $page_id : 0;
+        },
+    ]);
 });
 
 /**
@@ -281,6 +305,7 @@ function libresign_register_root_my_account_endpoints() {
 
     $myaccount_page_id = (int) wc_get_page_id( 'myaccount' );
     $front_page_id     = (int) get_option( 'page_on_front' );
+    $custom_endpoints   = array( 'ajuda' );
 
     if ( $myaccount_page_id <= 0 || $myaccount_page_id !== $front_page_id ) {
         return;
@@ -301,6 +326,15 @@ function libresign_register_root_my_account_endpoints() {
         );
     }
 
+    foreach ( $custom_endpoints as $custom_endpoint ) {
+        add_rewrite_endpoint( $custom_endpoint, EP_ROOT );
+        add_rewrite_rule(
+            '^' . preg_quote( $custom_endpoint, '/' ) . '/?$',
+            'index.php?page_id=' . $myaccount_page_id . '&' . $custom_endpoint . '=1',
+            'top'
+        );
+    }
+
     if ( function_exists( 'pll_languages_list' ) ) {
         $languages = pll_languages_list( [ 'fields' => 'slug' ] );
 
@@ -315,6 +349,14 @@ function libresign_register_root_my_account_endpoints() {
                 add_rewrite_rule(
                     '^(' . $language_pattern . ')/' . preg_quote( $query_var, '/' ) . '(?:/(.*))?/?$',
                     'index.php?lang=$matches[1]&page_id=' . $myaccount_page_id . '&' . $query_var . '=$matches[2]',
+                    'top'
+                );
+            }
+
+            foreach ( $custom_endpoints as $custom_endpoint ) {
+                add_rewrite_rule(
+                    '^(' . $language_pattern . ')/' . preg_quote( $custom_endpoint, '/' ) . '/?$',
+                    'index.php?lang=$matches[1]&page_id=' . $myaccount_page_id . '&' . $custom_endpoint . '=1',
                     'top'
                 );
             }
@@ -468,6 +510,102 @@ function libresign_prevent_root_my_account_endpoint_redirects() {
 add_action( 'template_redirect', 'libresign_prevent_root_my_account_endpoint_redirects', 0 );
 
 /**
+ * Add help to the WooCommerce account navigation.
+ */
+function libresign_add_help_account_menu_item( $items ) {
+    if ( ! function_exists( 'wc_get_page_id' ) || ! function_exists( 'WC' ) ) {
+        return $items;
+    }
+
+    $myaccount_page_id = (int) wc_get_page_id( 'myaccount' );
+    $front_page_id     = (int) get_option( 'page_on_front' );
+
+    if ( $myaccount_page_id <= 0 || $myaccount_page_id !== $front_page_id || ! isset( $items['customer-logout'] ) ) {
+        return $items;
+    }
+
+    $new_items = array();
+
+    foreach ( $items as $key => $label ) {
+        if ( 'customer-logout' === $key ) {
+            $new_items['ajuda'] = esc_html__( 'Ajuda', 'libresign-wp-customizations' );
+        }
+
+        $new_items[ $key ] = $label;
+    }
+
+    return $new_items;
+}
+add_filter( 'woocommerce_account_menu_items', 'libresign_add_help_account_menu_item', 20 );
+
+/**
+ * Render the /ajuda account page.
+ */
+function libresign_render_account_help_page() {
+    if ( ! function_exists( 'is_user_logged_in' ) || ! is_user_logged_in() ) {
+        return;
+    }
+
+    $nextcloud_host = trim( (string) get_option( 'nextcloud_api_host' ) );
+    $help_page_id   = (int) get_option( 'libresign_help_page_id' );
+
+    if ( $help_page_id > 0 ) {
+        $help_page = get_post( $help_page_id );
+
+        if ( $help_page && 'page' === $help_page->post_type ) {
+            echo '<div class="libresign-account-help-page" style="max-width: 52rem;">';
+            echo '<div class="libresign-account-help-page-content">';
+            echo apply_filters( 'the_content', $help_page->post_content );
+            echo '</div>';
+
+            if ( '' !== $nextcloud_host ) {
+                printf(
+                    '<p style="margin-top: 1.5rem;"><a class="wp-block-button__link wp-element-button is-style-outline" href="%s" target="_blank" rel="noopener noreferrer">%s</a></p>',
+                    esc_url( $nextcloud_host ),
+                    esc_html__( 'Ir para o sistema de assinaturas', 'libresign-wp-customizations' )
+                );
+            }
+
+            echo '</div>';
+            return;
+        }
+    }
+
+    if ( '' === $nextcloud_host ) {
+        return;
+    }
+
+    printf(
+        '<div class="libresign-account-help-page" style="max-width: 52rem;"><p style="margin-bottom: 1rem;">%s</p><div style="display: grid; gap: 1rem;"><div style="padding: 1rem; border: 1px solid currentColor; border-radius: 0.75rem;"><h2 style="margin: 0 0 0.5rem 0;">%s</h2><p style="margin: 0;">%s</p></div><div style="padding: 1rem; border: 1px solid currentColor; border-radius: 0.75rem;"><h2 style="margin: 0 0 0.5rem 0;">%s</h2><p style="margin: 0;">%s</p></div><div style="padding: 1rem; border: 1px solid currentColor; border-radius: 0.75rem;"><h2 style="margin: 0 0 0.5rem 0;">%s</h2><p style="margin: 0;">%s</p></div></div><p style="margin-top: 1.5rem;"><a class="wp-block-button__link wp-element-button is-style-outline" href="%s" target="_blank" rel="noopener noreferrer">%s</a></p></div>',
+        esc_html__( 'Se ficou em dúvida, esta página resume o que você precisa para seguir sem se perder.', 'libresign-wp-customizations' ),
+        esc_html__( 'Acesso', 'libresign-wp-customizations' ),
+        esc_html__( 'Use o mesmo login e senha do WordPress para entrar no sistema de assinaturas.', 'libresign-wp-customizations' ),
+        esc_html__( 'Assinaturas', 'libresign-wp-customizations' ),
+        esc_html__( 'Veja seus planos, cobranças e o status da sua conta no painel.', 'libresign-wp-customizations' ),
+        esc_html__( 'Ajuda', 'libresign-wp-customizations' ),
+        esc_html__( 'Se precisar voltar, esta área sempre mantém o caminho para o sistema principal.', 'libresign-wp-customizations' ),
+        esc_url( $nextcloud_host ),
+        esc_html__( 'Ir para o sistema de assinaturas', 'libresign-wp-customizations' )
+    );
+}
+add_action( 'woocommerce_account_ajuda_endpoint', 'libresign_render_account_help_page' );
+
+/**
+ * Build the URL for the account help page.
+ */
+function libresign_get_account_help_url() {
+    if ( function_exists( 'wc_get_endpoint_url' ) && function_exists( 'wc_get_page_permalink' ) ) {
+        $account_permalink = wc_get_page_permalink( 'myaccount' );
+
+        if ( ! empty( $account_permalink ) ) {
+            return wc_get_endpoint_url( 'ajuda', '', $account_permalink );
+        }
+    }
+
+    return home_url( '/ajuda/' );
+}
+
+/**
  * Render a CTA on every customer account screen that points to the Nextcloud instance.
  */
 function libresign_render_nextcloud_account_button() {
@@ -482,10 +620,13 @@ function libresign_render_nextcloud_account_button() {
     }
 
     printf(
-        '<div class="libresign-nextcloud-account-cta" style="margin-top: 1.5rem; padding: 1rem; border: 1px solid currentColor; border-radius: 0.75rem;"><p style="margin: 0 0 0.75rem 0;">%s</p><p style="margin: 0;"><a class="wp-block-button__link wp-element-button is-style-outline" href="%s" target="_blank" rel="noopener noreferrer">%s</a></p></div>',
+        '<div class="libresign-nextcloud-account-cta" style="margin-top: 1.5rem; padding: 1rem; border: 1px solid currentColor; border-radius: 0.75rem;"><p style="margin: 0 0 0.75rem 0;">%s</p><p style="margin: 0 0 1rem 0;"><a class="wp-block-button__link wp-element-button is-style-outline" href="%s" target="_blank" rel="noopener noreferrer">%s</a></p><p style="margin: 0;">%s <a href="%s">%s</a>.</p></div>',
         esc_html__( 'Use as mesmas credenciais do WordPress para acessar o sistema de assinaturas.', 'libresign-wp-customizations' ),
         esc_url( $nextcloud_host ),
-        esc_html__( 'Ir para o sistema de assinaturas', 'libresign-wp-customizations' )
+        esc_html__( 'Ir para o sistema de assinaturas', 'libresign-wp-customizations' ),
+        esc_html__( 'Se precisar de ajuda, veja a seção', 'libresign-wp-customizations' ),
+        esc_url( libresign_get_account_help_url() ),
+        esc_html__( 'Ajuda', 'libresign-wp-customizations' )
     );
 }
 add_action( 'woocommerce_before_account_navigation', 'libresign_render_nextcloud_account_button', 20 );
