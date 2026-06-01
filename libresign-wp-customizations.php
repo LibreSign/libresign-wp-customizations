@@ -457,6 +457,28 @@ function libresign_prevent_root_my_account_endpoint_redirects() {
 add_action( 'template_redirect', 'libresign_prevent_root_my_account_endpoint_redirects', 0 );
 
 /**
+ * Render a CTA on every customer account screen that points to the Nextcloud instance.
+ */
+function libresign_render_nextcloud_account_button() {
+    if ( ! function_exists( 'is_account_page' ) || ! is_account_page() || ! function_exists( 'is_user_logged_in' ) || ! is_user_logged_in() ) {
+        return;
+    }
+
+    $nextcloud_host = trim( (string) get_option( 'nextcloud_api_host' ) );
+
+    if ( '' === $nextcloud_host ) {
+        return;
+    }
+
+    printf(
+        '<p class="libresign-nextcloud-account-button" style="margin-top: 1.5rem;"><a class="wp-block-button__link wp-element-button is-style-outline" href="%s" target="_blank" rel="noopener noreferrer">%s</a></p>',
+        esc_url( $nextcloud_host ),
+        esc_html__( 'Ir para o sistema de assinaturas', 'wp-simple-smtp' )
+    );
+}
+add_action( 'woocommerce_before_account_navigation', 'libresign_render_nextcloud_account_button', 20 );
+
+/**
  * Return the WordPress version to be possible use the right assets when deploy
  */
 add_action('rest_api_init', function () {
