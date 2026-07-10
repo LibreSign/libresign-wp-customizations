@@ -23,7 +23,49 @@
 
 defined( 'ABSPATH' ) || exit;
 
-const LIBRESIGN_WP_REWRITE_VERSION = '5';
+const LIBRESIGN_WP_REWRITE_VERSION = '7';
+
+/**
+ * Get the WooCommerce My Account page ID.
+ */
+function libresign_get_my_account_page_id() {
+    if ( ! function_exists( 'wc_get_page_id' ) ) {
+        return 0;
+    }
+
+    return (int) wc_get_page_id( 'myaccount' );
+}
+
+/**
+ * Check whether My Account is configured as the front page.
+ */
+function libresign_is_my_account_front_page() {
+    $myaccount_page_id = libresign_get_my_account_page_id();
+    $front_page_id     = (int) get_option( 'page_on_front' );
+
+    return $myaccount_page_id > 0 && $myaccount_page_id === $front_page_id;
+}
+
+/**
+ * Resolve a translated page ID when Polylang is active.
+ */
+function libresign_get_translated_page_id( $page_id, $language = '' ) {
+    $page_id = (int) $page_id;
+
+    if ( $page_id <= 0 ) {
+        return 0;
+    }
+
+    if ( '' !== $language && function_exists( 'pll_get_post' ) ) {
+        $translated_page_id = (int) pll_get_post( $page_id, $language );
+
+        if ( $translated_page_id > 0 ) {
+            return $translated_page_id;
+        }
+    }
+
+    return $page_id;
+}
 
 /**
  * Load plugin translations.
@@ -418,11 +460,10 @@ function libresign_register_root_my_account_endpoints() {
         return;
     }
 
-    $myaccount_page_id = (int) wc_get_page_id( 'myaccount' );
-    $front_page_id     = (int) get_option( 'page_on_front' );
-    $custom_endpoints   = array( 'ajuda' );
+    $myaccount_page_id = libresign_get_my_account_page_id();
+    $custom_endpoints  = array( 'ajuda' );
 
-    if ( $myaccount_page_id <= 0 || $myaccount_page_id !== $front_page_id ) {
+    if ( ! libresign_is_my_account_front_page() ) {
         return;
     }
 
@@ -463,7 +504,7 @@ function libresign_register_root_my_account_endpoints() {
 
                 add_rewrite_rule(
                     '^(' . $language_pattern . ')/' . preg_quote( $query_var, '/' ) . '(?:/(.*))?/?$',
-                    'index.php?lang=$matches[1]&page_id=' . $myaccount_page_id . '&' . $query_var . '=$matches[2]',
+                    'index.php?lang=$matches[1]&page_id=' . libresign_get_translated_page_id( $myaccount_page_id, '$matches[1]' ) . '&' . $query_var . '=$matches[2]',
                     'top'
                 );
             }
@@ -471,7 +512,7 @@ function libresign_register_root_my_account_endpoints() {
             foreach ( $custom_endpoints as $custom_endpoint ) {
                 add_rewrite_rule(
                     '^(' . $language_pattern . ')/' . preg_quote( $custom_endpoint, '/' ) . '/?$',
-                    'index.php?lang=$matches[1]&page_id=' . $myaccount_page_id . '&' . $custom_endpoint . '=1',
+                    'index.php?lang=$matches[1]&page_id=' . libresign_get_translated_page_id( $myaccount_page_id, '$matches[1]' ) . '&' . $custom_endpoint . '=1',
                     'top'
                 );
             }
@@ -479,6 +520,52 @@ function libresign_register_root_my_account_endpoints() {
     }
 }
 add_action( 'init', 'libresign_register_root_my_account_endpoints', 20 );
+
+/**
+ * Register compatibility rewrites for the standard WooCommerce My Account path.
+ *
+ * When My Account is used as the front page, WooCommerce's default /my-account/
+ * permalink is not generated automatically. Keep it working as an alias so
+ * existing links and language-prefixed routes do not break.
+ */
+function libresign_register_my_account_page_aliases() {
+    if ( ! function_exists( 'WC' ) ) {
+        return;
+    }
+
+    if ( ! libresign_is_my_account_front_page() ) {
+        return;
+    }
+
+    $myaccount_page_id = libresign_get_my_account_page_id();
+
+    if ( $myaccount_page_id <= 0 ) {
+        return;
+    }
+
+    add_rewrite_rule(
+        '^my-account/?$',
+        'index.php?page_id=' . $myaccount_page_id,
+        'top'
+    );
+
+    if ( function_exists( 'pll_languages_list' ) ) {
+        $languages = pll_languages_list( array( 'fields' => 'slug' ) );
+
+        if ( is_array( $languages ) && ! empty( $languages ) ) {
+            foreach ( $languages as $language ) {
+                $translated_page_id = libresign_get_translated_page_id( $myaccount_page_id, $language );
+
+                add_rewrite_rule(
+                    '^' . preg_quote( $language, '/' ) . '/my-account/?$',
+                    'index.php?lang=' . $language . '&page_id=' . $translated_page_id,
+                    'top'
+                );
+            }
+        }
+    }
+}
+add_action( 'init', 'libresign_register_my_account_page_aliases', 19 );
 
 /**
  * Register explicit checkout endpoint rewrites so order-pay and order-received are not parsed as posts.
@@ -554,6 +641,7 @@ function libresign_maybe_flush_root_my_account_endpoints() {
     }
 
     libresign_register_root_my_account_endpoints();
+    libresign_register_my_account_page_aliases();
     flush_rewrite_rules( false );
     update_option( 'libresign_root_my_account_rewrite_version', LIBRESIGN_WP_REWRITE_VERSION );
 }
@@ -567,10 +655,7 @@ function libresign_is_root_my_account_endpoint_request() {
         return false;
     }
 
-    $myaccount_page_id = (int) wc_get_page_id( 'myaccount' );
-    $front_page_id     = (int) get_option( 'page_on_front' );
-
-    if ( $myaccount_page_id <= 0 || $myaccount_page_id !== $front_page_id ) {
+    if ( ! libresign_is_my_account_front_page() ) {
         return false;
     }
 
@@ -584,6 +669,10 @@ function libresign_is_root_my_account_endpoint_request() {
     $segments   = explode( '/', $request_path );
     $first_slug = reset( $segments );
     $query_vars = WC()->query->get_query_vars();
+
+    if ( 'my-account' === $first_slug ) {
+        return true;
+    }
 
     foreach ( $query_vars as $query_var ) {
         if ( ! empty( $query_var ) && $query_var === $first_slug ) {
