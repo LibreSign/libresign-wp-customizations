@@ -632,9 +632,29 @@ function libresign_render_nextcloud_account_button() {
 add_action( 'woocommerce_before_account_navigation', 'libresign_render_nextcloud_account_button', 20 );
 
 /**
- * Resolve a subscription the current user is allowed to cancel, or null.
+ * Confirmation strings for each subscription status change that requires an extra step.
  */
-function libresign_get_cancellable_subscription( $subscription_id ) {
+function libresign_get_subscription_confirmation_strings( $new_status ) {
+    $strings = array(
+        'cancelled' => array(
+            'question' => esc_html__( 'Are you sure you want to cancel your subscription? This action cannot be undone.', 'libresign-wp-customizations' ),
+            'confirm'  => esc_html__( 'Yes, cancel subscription', 'libresign-wp-customizations' ),
+            'dismiss'  => esc_html__( 'No, keep subscription', 'libresign-wp-customizations' ),
+        ),
+        'active' => array(
+            'question' => esc_html__( 'Are you sure you want to reactivate your subscription?', 'libresign-wp-customizations' ),
+            'confirm'  => esc_html__( 'Yes, reactivate subscription', 'libresign-wp-customizations' ),
+            'dismiss'  => esc_html__( 'No, go back', 'libresign-wp-customizations' ),
+        ),
+    );
+
+    return $strings[ $new_status ] ?? null;
+}
+
+/**
+ * Resolve a subscription the current user is allowed to update to the given status, or null.
+ */
+function libresign_get_subscription_for_status_change( $subscription_id, $new_status ) {
     if ( ! function_exists( 'wcs_get_subscription' ) ) {
         return null;
     }
@@ -643,7 +663,7 @@ function libresign_get_cancellable_subscription( $subscription_id ) {
 
     if ( ! $subscription
         || ! user_can( get_current_user_id(), 'edit_shop_subscription_status', $subscription->get_id() )
-        || ! $subscription->can_be_updated_to( 'cancelled' )
+        || ! $subscription->can_be_updated_to( $new_status )
     ) {
         return null;
     }
@@ -652,40 +672,61 @@ function libresign_get_cancellable_subscription( $subscription_id ) {
 }
 
 /**
- * Intercept unconfirmed cancellation requests before WCS_User_Change_Status_Handler
+ * Intercept unconfirmed status change requests before WCS_User_Change_Status_Handler
  * (wp_loaded, priority 100) and redirect to the confirmation prompt instead.
  */
-function libresign_intercept_subscription_cancellation() {
+function libresign_intercept_subscription_status_change() {
     if ( ! isset( $_GET['change_subscription_to'], $_GET['subscription_id'], $_GET['_wpnonce'] )
         || ! function_exists( 'wc_clean' )
-        || 'cancelled' !== wc_clean( wp_unslash( $_GET['change_subscription_to'] ) )
-        || ! empty( $_GET['libresign_cancel_confirmed'] )
+        || ! empty( $_GET['libresign_change_confirmed'] )
     ) {
         return;
     }
 
-    $subscription = libresign_get_cancellable_subscription( $_GET['subscription_id'] );
+    $new_status = wc_clean( wp_unslash( $_GET['change_subscription_to'] ) );
+
+    if ( ! libresign_get_subscription_confirmation_strings( $new_status ) ) {
+        return;
+    }
+
+    $subscription = libresign_get_subscription_for_status_change( $_GET['subscription_id'], $new_status );
 
     if ( ! $subscription ) {
         return;
     }
 
     wp_safe_redirect(
-        add_query_arg( 'libresign_confirm_cancel', $subscription->get_id(), $subscription->get_view_order_url() )
+        add_query_arg(
+            array(
+                'libresign_confirm_change'       => $new_status,
+                'libresign_confirm_subscription' => $subscription->get_id(),
+            ),
+            $subscription->get_view_order_url()
+        )
     );
     exit;
 }
-add_action( 'wp_loaded', 'libresign_intercept_subscription_cancellation', 99 );
+add_action( 'wp_loaded', 'libresign_intercept_subscription_status_change', 99 );
 
 /**
- * Show the cancellation confirmation prompt on the subscription page.
+ * Show the status change confirmation prompt on the subscription page.
  */
-function libresign_render_subscription_cancellation_confirmation() {
-    if ( empty( $_GET['libresign_confirm_cancel'] ) ) {
+function libresign_render_subscription_change_confirmation() {
+    if ( empty( $_GET['libresign_confirm_change'] )
+        || empty( $_GET['libresign_confirm_subscription'] )
+        || ! function_exists( 'wc_clean' )
+    ) {
         return;
     }
 
-    $subscription = libresign_get_cancellable_subscription( $_GET['libresign_confirm_cancel'] );
+    $new_status = wc_clean( wp_unslash( $_GET['libresign_confirm_change'] ) );
+    $strings    = libresign_get_subscription_confirmation_strings( $new_status );
+
+    if ( ! $strings ) {
+        return;
+    }
+
+    $subscription = libresign_get_subscription_for_status_change( $_GET['libresign_confirm_subscription'], $new_status );
 
     if ( ! $subscription ) {
         return;
@@ -694,8 +735,8 @@ function libresign_render_subscription_cancellation_confirmation() {
     $confirm_url = add_query_arg(
         array(
             'subscription_id'            => $subscription->get_id(),
-            'change_subscription_to'     => 'cancelled',
-            'libresign_cancel_confirmed' => '1',
+            'change_subscription_to'     => $new_status,
+            'libresign_change_confirmed' => '1',
         ),
         $subscription->get_view_order_url()
     );
@@ -703,16 +744,16 @@ function libresign_render_subscription_cancellation_confirmation() {
 
     $message = sprintf(
         '%s<br /><a href="%s" class="button" style="margin-top: 0.75rem; margin-right: 0.5rem;">%s</a> <a href="%s" class="button" style="margin-top: 0.75rem;">%s</a>',
-        esc_html__( 'Are you sure you want to cancel your subscription? This action cannot be undone.', 'libresign-wp-customizations' ),
+        $strings['question'],
         esc_url( $confirm_url ),
-        esc_html__( 'Yes, cancel subscription', 'libresign-wp-customizations' ),
+        $strings['confirm'],
         esc_url( $subscription->get_view_order_url() ),
-        esc_html__( 'No, keep subscription', 'libresign-wp-customizations' )
+        $strings['dismiss']
     );
 
     wc_add_notice( $message, 'notice' );
 }
-add_action( 'template_redirect', 'libresign_render_subscription_cancellation_confirmation' );
+add_action( 'template_redirect', 'libresign_render_subscription_change_confirmation' );
 
 /**
  * Return the WordPress version to be possible use the right assets when deploy
