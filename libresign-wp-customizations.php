@@ -637,14 +637,14 @@ add_action( 'woocommerce_before_account_navigation', 'libresign_render_nextcloud
 function libresign_get_subscription_confirmation_strings( $new_status ) {
     $strings = array(
         'cancelled' => array(
-            'question' => esc_html__( 'Are you sure you want to cancel your subscription? This action cannot be undone.', 'libresign-wp-customizations' ),
-            'confirm'  => esc_html__( 'Yes, cancel subscription', 'libresign-wp-customizations' ),
-            'dismiss'  => esc_html__( 'No, keep subscription', 'libresign-wp-customizations' ),
+            'question' => __( 'Are you sure you want to cancel your subscription? This action cannot be undone.', 'libresign-wp-customizations' ),
+            'confirm'  => __( 'Yes, cancel subscription', 'libresign-wp-customizations' ),
+            'dismiss'  => __( 'No, keep subscription', 'libresign-wp-customizations' ),
         ),
         'active' => array(
-            'question' => esc_html__( 'Are you sure you want to reactivate your subscription?', 'libresign-wp-customizations' ),
-            'confirm'  => esc_html__( 'Yes, reactivate subscription', 'libresign-wp-customizations' ),
-            'dismiss'  => esc_html__( 'No, go back', 'libresign-wp-customizations' ),
+            'question' => __( 'Are you sure you want to reactivate your subscription?', 'libresign-wp-customizations' ),
+            'confirm'  => __( 'Yes, reactivate subscription', 'libresign-wp-customizations' ),
+            'dismiss'  => __( 'No, go back', 'libresign-wp-customizations' ),
         ),
     );
 
@@ -662,7 +662,7 @@ function libresign_get_subscription_for_status_change( $subscription_id, $new_st
     $subscription = wcs_get_subscription( absint( $subscription_id ) );
 
     if ( ! $subscription
-        || ! user_can( get_current_user_id(), 'edit_shop_subscription_status', $subscription->get_id() )
+        || ! current_user_can( 'edit_shop_subscription_status', $subscription->get_id() )
         || ! $subscription->can_be_updated_to( $new_status )
     ) {
         return null;
@@ -678,8 +678,11 @@ function libresign_get_subscription_for_status_change( $subscription_id, $new_st
 function libresign_intercept_subscription_status_change() {
     if ( ! isset( $_GET['change_subscription_to'], $_GET['subscription_id'], $_GET['_wpnonce'] )
         || ! function_exists( 'wc_clean' )
-        || ! empty( $_GET['libresign_change_confirmed'] )
     ) {
+        return;
+    }
+
+    if ( ! empty( $_GET['libresign_change_confirmed'] ) ) {
         return;
     }
 
@@ -690,8 +693,11 @@ function libresign_intercept_subscription_status_change() {
     }
 
     $subscription = libresign_get_subscription_for_status_change( $_GET['subscription_id'], $new_status );
+    $nonce        = wc_clean( wp_unslash( $_GET['_wpnonce'] ) );
 
-    if ( ! $subscription ) {
+    if ( ! $subscription
+        || ! wp_verify_nonce( $nonce, $subscription->get_id() . $subscription->get_status() )
+    ) {
         return;
     }
 
@@ -700,6 +706,7 @@ function libresign_intercept_subscription_status_change() {
             array(
                 'libresign_confirm_change'       => $new_status,
                 'libresign_confirm_subscription' => $subscription->get_id(),
+                '_wpnonce'                       => $nonce,
             ),
             $subscription->get_view_order_url()
         )
@@ -714,7 +721,10 @@ add_action( 'wp_loaded', 'libresign_intercept_subscription_status_change', 99 );
 function libresign_render_subscription_change_confirmation() {
     if ( empty( $_GET['libresign_confirm_change'] )
         || empty( $_GET['libresign_confirm_subscription'] )
+        || empty( $_GET['_wpnonce'] )
         || ! function_exists( 'wc_clean' )
+        || ! function_exists( 'is_account_page' )
+        || ! is_account_page()
     ) {
         return;
     }
@@ -727,8 +737,11 @@ function libresign_render_subscription_change_confirmation() {
     }
 
     $subscription = libresign_get_subscription_for_status_change( $_GET['libresign_confirm_subscription'], $new_status );
+    $nonce        = wc_clean( wp_unslash( $_GET['_wpnonce'] ) );
 
-    if ( ! $subscription ) {
+    if ( ! $subscription
+        || ! wp_verify_nonce( $nonce, $subscription->get_id() . $subscription->get_status() )
+    ) {
         return;
     }
 
@@ -737,18 +750,18 @@ function libresign_render_subscription_change_confirmation() {
             'subscription_id'            => $subscription->get_id(),
             'change_subscription_to'     => $new_status,
             'libresign_change_confirmed' => '1',
+            '_wpnonce'                   => $nonce,
         ),
         $subscription->get_view_order_url()
     );
-    $confirm_url = wp_nonce_url( $confirm_url, $subscription->get_id() . $subscription->get_status() );
 
     $message = sprintf(
         '%s<br /><a href="%s" class="button" style="margin-top: 0.75rem; margin-right: 0.5rem;">%s</a> <a href="%s" class="button" style="margin-top: 0.75rem;">%s</a>',
-        $strings['question'],
+        esc_html( $strings['question'] ),
         esc_url( $confirm_url ),
-        $strings['confirm'],
+        esc_html( $strings['confirm'] ),
         esc_url( $subscription->get_view_order_url() ),
-        $strings['dismiss']
+        esc_html( $strings['dismiss'] )
     );
 
     wc_add_notice( $message, 'notice' );
