@@ -836,6 +836,143 @@ function libresign_render_nextcloud_account_button() {
 add_action( 'woocommerce_before_account_navigation', 'libresign_render_nextcloud_account_button', 20 );
 
 /**
+ * Confirmation strings for each subscription status change that requires an extra step.
+ */
+function libresign_get_subscription_confirmation_strings( $new_status ) {
+    $strings = array(
+        'cancelled' => array(
+            'question' => __( 'Are you sure you want to cancel your subscription? This action cannot be undone.', 'libresign-wp-customizations' ),
+            'confirm'  => __( 'Yes, cancel subscription', 'libresign-wp-customizations' ),
+            'dismiss'  => __( 'No, keep subscription', 'libresign-wp-customizations' ),
+        ),
+        'active' => array(
+            'question' => __( 'Are you sure you want to reactivate your subscription?', 'libresign-wp-customizations' ),
+            'confirm'  => __( 'Yes, reactivate subscription', 'libresign-wp-customizations' ),
+            'dismiss'  => __( 'No, go back', 'libresign-wp-customizations' ),
+        ),
+    );
+
+    return $strings[ $new_status ] ?? null;
+}
+
+/**
+ * Resolve a subscription the current user is allowed to update to the given status, or null.
+ */
+function libresign_get_subscription_for_status_change( $subscription_id, $new_status ) {
+    if ( ! function_exists( 'wcs_get_subscription' ) ) {
+        return null;
+    }
+
+    $subscription = wcs_get_subscription( absint( $subscription_id ) );
+
+    if ( ! $subscription
+        || ! current_user_can( 'edit_shop_subscription_status', $subscription->get_id() )
+        || ! $subscription->can_be_updated_to( $new_status )
+    ) {
+        return null;
+    }
+
+    return $subscription;
+}
+
+/**
+ * Intercept unconfirmed status change requests before WCS_User_Change_Status_Handler
+ * (wp_loaded, priority 100) and redirect to the confirmation prompt instead.
+ */
+function libresign_intercept_subscription_status_change() {
+    if ( ! isset( $_GET['change_subscription_to'], $_GET['subscription_id'], $_GET['_wpnonce'] )
+        || ! function_exists( 'wc_clean' )
+    ) {
+        return;
+    }
+
+    if ( ! empty( $_GET['libresign_change_confirmed'] ) ) {
+        return;
+    }
+
+    $new_status = wc_clean( wp_unslash( $_GET['change_subscription_to'] ) );
+
+    if ( ! libresign_get_subscription_confirmation_strings( $new_status ) ) {
+        return;
+    }
+
+    $subscription = libresign_get_subscription_for_status_change( $_GET['subscription_id'], $new_status );
+    $nonce        = wc_clean( wp_unslash( $_GET['_wpnonce'] ) );
+
+    if ( ! $subscription
+        || ! wp_verify_nonce( $nonce, $subscription->get_id() . $subscription->get_status() )
+    ) {
+        return;
+    }
+
+    wp_safe_redirect(
+        add_query_arg(
+            array(
+                'libresign_confirm_change'       => $new_status,
+                'libresign_confirm_subscription' => $subscription->get_id(),
+                '_wpnonce'                       => $nonce,
+            ),
+            $subscription->get_view_order_url()
+        )
+    );
+    exit;
+}
+add_action( 'wp_loaded', 'libresign_intercept_subscription_status_change', 99 );
+
+/**
+ * Show the status change confirmation prompt on the subscription page.
+ */
+function libresign_render_subscription_change_confirmation() {
+    if ( empty( $_GET['libresign_confirm_change'] )
+        || empty( $_GET['libresign_confirm_subscription'] )
+        || empty( $_GET['_wpnonce'] )
+        || ! function_exists( 'wc_clean' )
+        || ! function_exists( 'is_account_page' )
+        || ! is_account_page()
+    ) {
+        return;
+    }
+
+    $new_status = wc_clean( wp_unslash( $_GET['libresign_confirm_change'] ) );
+    $strings    = libresign_get_subscription_confirmation_strings( $new_status );
+
+    if ( ! $strings ) {
+        return;
+    }
+
+    $subscription = libresign_get_subscription_for_status_change( $_GET['libresign_confirm_subscription'], $new_status );
+    $nonce        = wc_clean( wp_unslash( $_GET['_wpnonce'] ) );
+
+    if ( ! $subscription
+        || ! wp_verify_nonce( $nonce, $subscription->get_id() . $subscription->get_status() )
+    ) {
+        return;
+    }
+
+    $confirm_url = add_query_arg(
+        array(
+            'subscription_id'            => $subscription->get_id(),
+            'change_subscription_to'     => $new_status,
+            'libresign_change_confirmed' => '1',
+            '_wpnonce'                   => $nonce,
+        ),
+        $subscription->get_view_order_url()
+    );
+
+    $message = sprintf(
+        '%s<br /><a href="%s" class="button" style="margin-top: 0.75rem; margin-right: 0.5rem;">%s</a> <a href="%s" class="button" style="margin-top: 0.75rem;">%s</a>',
+        esc_html( $strings['question'] ),
+        esc_url( $confirm_url ),
+        esc_html( $strings['confirm'] ),
+        esc_url( $subscription->get_view_order_url() ),
+        esc_html( $strings['dismiss'] )
+    );
+
+    wc_add_notice( $message, 'notice' );
+}
+add_action( 'template_redirect', 'libresign_render_subscription_change_confirmation' );
+
+/**
  * Return the WordPress version to be possible use the right assets when deploy
  */
 add_action('rest_api_init', function () {
