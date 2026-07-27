@@ -661,15 +661,52 @@ add_filter( 'woocommerce_subscriptions_thank_you_message', function ( $message )
 }, 99 );
 
 /**
- * Render the next steps on the order received page: the subscription status notice,
- * plus links to the account settings panel (WordPress) and to the first signature (Nextcloud).
+ * Print the subscription notice with the same allowlist the Subscriptions plugin applies to it.
  */
-function libresign_render_thank_you_next_steps() {
-    $account_url          = function_exists( 'wc_get_page_permalink' ) ? wc_get_page_permalink( 'myaccount' ) : '';
-    $nextcloud_host       = libresign_get_nextcloud_url();
-    $subscription_message = libresign_thank_you_subscription_message();
+function libresign_print_thank_you_subscription_message( $message ) {
+    if ( '' === $message ) {
+        return;
+    }
 
-    if ( empty( $account_url ) && '' === $nextcloud_host ) {
+    echo wp_kses(
+        $message,
+        array(
+            'a'      => array(
+                'href'  => array(),
+                'title' => array(),
+            ),
+            'p'      => array(),
+            'em'     => array(),
+            'strong' => array(),
+        )
+    );
+}
+
+/**
+ * Render the next steps on the order received page: the subscription status notice,
+ * plus links to the account dashboard (WordPress) and to the first signature (Nextcloud).
+ *
+ * @param int $order_id Order being displayed.
+ */
+function libresign_render_thank_you_next_steps( $order_id = 0 ) {
+    $subscription_message = libresign_thank_you_subscription_message();
+    $order                = $order_id ? wc_get_order( $order_id ) : false;
+    $account_url          = '';
+    $nextcloud_url        = '';
+
+    libresign_thank_you_subscription_message( '' );
+
+    if ( $order && is_user_logged_in() && $order->get_user_id() === get_current_user_id() ) {
+        $account_url = (string) wc_get_page_permalink( 'myaccount' );
+
+        if ( $order->is_paid() ) {
+            $nextcloud_url = libresign_get_nextcloud_url();
+        }
+    }
+
+    if ( '' === $account_url && '' === $nextcloud_url ) {
+        libresign_print_thank_you_subscription_message( $subscription_message );
+
         return;
     }
 
@@ -682,35 +719,24 @@ function libresign_render_thank_you_next_steps() {
 
     if ( '' !== $subscription_message ) {
         echo '<div class="libresign-thankyou-next-steps__notice" style="margin: 0 0 1rem 0;">';
-        echo wp_kses(
-            $subscription_message,
-            array(
-                'a'      => array(
-                    'href'  => array(),
-                    'title' => array(),
-                ),
-                'p'      => array(),
-                'em'     => array(),
-                'strong' => array(),
-            )
-        );
+        libresign_print_thank_you_subscription_message( $subscription_message );
         echo '</div>';
     }
 
     echo '<p style="margin: 0; display: flex; flex-wrap: wrap; gap: 0.75rem;">';
 
-    if ( ! empty( $account_url ) ) {
+    if ( '' !== $account_url ) {
         printf(
             '<a class="wp-block-button__link wp-element-button is-style-outline" href="%s">%s</a>',
             esc_url( $account_url ),
-            esc_html__( 'Go to your account settings', 'libresign-wp-customizations' )
+            esc_html__( 'Go to your dashboard', 'libresign-wp-customizations' )
         );
     }
 
-    if ( '' !== $nextcloud_host ) {
+    if ( '' !== $nextcloud_url ) {
         printf(
             '<a class="wp-block-button__link wp-element-button" href="%s" target="_blank" rel="noopener noreferrer">%s</a>',
-            esc_url( $nextcloud_host ),
+            esc_url( $nextcloud_url ),
             esc_html__( 'Sign your first document', 'libresign-wp-customizations' )
         );
     }
