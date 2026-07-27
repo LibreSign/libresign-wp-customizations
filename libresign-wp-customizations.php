@@ -606,6 +606,13 @@ function libresign_get_account_help_url() {
 }
 
 /**
+ * URL of the Nextcloud instance, shared with the WooCommerce integration plugin.
+ */
+function libresign_get_nextcloud_url() {
+    return trim( (string) get_option( 'nextcloud_api_host' ) );
+}
+
+/**
  * Render a CTA on every customer account screen that points to the Nextcloud instance.
  */
 function libresign_render_nextcloud_account_button() {
@@ -613,7 +620,7 @@ function libresign_render_nextcloud_account_button() {
         return;
     }
 
-    $nextcloud_host = trim( (string) get_option( 'nextcloud_api_host' ) );
+    $nextcloud_host = libresign_get_nextcloud_url();
 
     if ( '' === $nextcloud_host ) {
         return;
@@ -630,6 +637,87 @@ function libresign_render_nextcloud_account_button() {
     );
 }
 add_action( 'woocommerce_before_account_navigation', 'libresign_render_nextcloud_account_button', 20 );
+
+/**
+ * Store and read the WooCommerce Subscriptions thank you message, so it can be moved
+ * into the next steps block instead of being printed on its own.
+ *
+ * @param string|null $message Message to store. Omit to read the stored one.
+ */
+function libresign_thank_you_subscription_message( $message = null ) {
+    static $stored = '';
+
+    if ( null !== $message ) {
+        $stored = (string) $message;
+    }
+
+    return $stored;
+}
+
+add_filter( 'woocommerce_subscriptions_thank_you_message', function ( $message ) {
+    libresign_thank_you_subscription_message( $message );
+
+    return '';
+}, 99 );
+
+/**
+ * Render the next steps on the order received page: the subscription status notice,
+ * plus links to the account settings panel (WordPress) and to the first signature (Nextcloud).
+ */
+function libresign_render_thank_you_next_steps() {
+    $account_url          = function_exists( 'wc_get_page_permalink' ) ? wc_get_page_permalink( 'myaccount' ) : '';
+    $nextcloud_host       = libresign_get_nextcloud_url();
+    $subscription_message = libresign_thank_you_subscription_message();
+
+    if ( empty( $account_url ) && '' === $nextcloud_host ) {
+        return;
+    }
+
+    echo '<div class="libresign-thankyou-next-steps" style="margin-top: 1.5rem; padding: 1rem; border: 1px solid currentColor; border-radius: 0.75rem;">';
+
+    printf(
+        '<p style="margin: 0 0 1rem 0;">%s</p>',
+        esc_html__( 'What would you like to do next?', 'libresign-wp-customizations' )
+    );
+
+    if ( '' !== $subscription_message ) {
+        echo '<div class="libresign-thankyou-next-steps__notice" style="margin: 0 0 1rem 0;">';
+        echo wp_kses(
+            $subscription_message,
+            array(
+                'a'      => array(
+                    'href'  => array(),
+                    'title' => array(),
+                ),
+                'p'      => array(),
+                'em'     => array(),
+                'strong' => array(),
+            )
+        );
+        echo '</div>';
+    }
+
+    echo '<p style="margin: 0; display: flex; flex-wrap: wrap; gap: 0.75rem;">';
+
+    if ( ! empty( $account_url ) ) {
+        printf(
+            '<a class="wp-block-button__link wp-element-button is-style-outline" href="%s">%s</a>',
+            esc_url( $account_url ),
+            esc_html__( 'Go to your account settings', 'libresign-wp-customizations' )
+        );
+    }
+
+    if ( '' !== $nextcloud_host ) {
+        printf(
+            '<a class="wp-block-button__link wp-element-button" href="%s" target="_blank" rel="noopener noreferrer">%s</a>',
+            esc_url( $nextcloud_host ),
+            esc_html__( 'Sign your first document', 'libresign-wp-customizations' )
+        );
+    }
+
+    echo '</p></div>';
+}
+add_action( 'woocommerce_thankyou', 'libresign_render_thank_you_next_steps', 11 );
 
 /**
  * Confirmation strings for each subscription status change that requires an extra step.
