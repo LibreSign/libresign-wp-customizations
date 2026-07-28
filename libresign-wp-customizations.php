@@ -810,6 +810,13 @@ function libresign_get_account_help_url() {
 }
 
 /**
+ * URL of the Nextcloud instance, shared with the WooCommerce integration plugin.
+ */
+function libresign_get_nextcloud_url() {
+    return trim( (string) get_option( 'nextcloud_api_host' ) );
+}
+
+/**
  * Render a CTA on every customer account screen that points to the Nextcloud instance.
  */
 function libresign_render_nextcloud_account_button() {
@@ -817,7 +824,7 @@ function libresign_render_nextcloud_account_button() {
         return;
     }
 
-    $nextcloud_host = trim( (string) get_option( 'nextcloud_api_host' ) );
+    $nextcloud_host = libresign_get_nextcloud_url();
 
     if ( '' === $nextcloud_host ) {
         return;
@@ -834,6 +841,148 @@ function libresign_render_nextcloud_account_button() {
     );
 }
 add_action( 'woocommerce_before_account_navigation', 'libresign_render_nextcloud_account_button', 20 );
+
+/**
+ * Store and read the WooCommerce Subscriptions thank you message, so it can be moved
+ * into the next steps block instead of being printed on its own.
+ *
+ * @param string|null $message Message to store. Omit to read the stored one.
+ */
+function libresign_thank_you_subscription_message( $message = null ) {
+    static $stored = '';
+
+    if ( null !== $message ) {
+        $stored = (string) $message;
+    }
+
+    return $stored;
+}
+
+add_filter( 'woocommerce_subscriptions_thank_you_message', function ( $message ) {
+    libresign_thank_you_subscription_message( $message );
+
+    return '';
+}, 99 );
+
+/**
+ * Print the subscription notice with the same allowlist the Subscriptions plugin applies to it.
+ */
+function libresign_print_thank_you_subscription_message( $message ) {
+    if ( '' === $message ) {
+        return;
+    }
+
+    echo wp_kses(
+        $message,
+        array(
+            'a'      => array(
+                'href'  => array(),
+                'title' => array(),
+            ),
+            'p'      => array(),
+            'em'     => array(),
+            'strong' => array(),
+        )
+    );
+}
+
+/**
+ * Get the unique WooCommerce purchase notes for the products in an order.
+ *
+ * @param WC_Order $order Order being displayed.
+ * @return string[]
+ */
+function libresign_get_order_purchase_notes( $order ) {
+    $purchase_notes = array();
+
+    foreach ( $order->get_items() as $item ) {
+        $product       = $item->get_product();
+        $purchase_note = $product ? trim( (string) $product->get_purchase_note() ) : '';
+
+        if ( '' !== $purchase_note ) {
+            $purchase_notes[ md5( $purchase_note ) ] = $purchase_note;
+        }
+    }
+
+    return array_values( $purchase_notes );
+}
+
+/**
+ * Avoid repeating purchase notes in the order table after moving them to next steps.
+ *
+ * Other order screens keep WooCommerce's default behavior.
+ *
+ * @param string[] $statuses Order statuses that display purchase notes.
+ * @return string[]
+ */
+function libresign_hide_moved_purchase_notes_in_order_table( $statuses ) {
+    return function_exists( 'is_order_received_page' ) && is_order_received_page() ? array() : $statuses;
+}
+add_filter( 'woocommerce_purchase_note_order_statuses', 'libresign_hide_moved_purchase_notes_in_order_table', 99 );
+
+/**
+ * Render the subscription status notice and relevant next steps on the order received page.
+ *
+ * @param int $order_id Order being displayed.
+ */
+function libresign_render_thank_you_next_steps( $order_id = 0 ) {
+    $subscription_message = libresign_thank_you_subscription_message();
+    $order                = $order_id ? wc_get_order( $order_id ) : false;
+    $account_url          = '';
+    $purchase_notes       = array();
+
+    libresign_thank_you_subscription_message( '' );
+
+    if ( $order ) {
+        if ( $order->is_paid() ) {
+            $purchase_notes = libresign_get_order_purchase_notes( $order );
+        }
+
+        if ( is_user_logged_in() && $order->get_user_id() === get_current_user_id() ) {
+            $account_url = (string) wc_get_page_permalink( 'myaccount' );
+        }
+    }
+
+    if ( '' === $account_url && empty( $purchase_notes ) ) {
+        libresign_print_thank_you_subscription_message( $subscription_message );
+
+        return;
+    }
+
+    echo '<div class="libresign-thankyou-next-steps" style="margin-top: 1.5rem; padding: 1rem; border: 1px solid currentColor; border-radius: 0.75rem;">';
+
+    printf(
+        '<p style="margin: 0 0 1rem 0;">%s</p>',
+        esc_html__( 'What would you like to do next?', 'libresign-wp-customizations' )
+    );
+
+    if ( '' !== $subscription_message ) {
+        echo '<div class="libresign-thankyou-next-steps__notice" style="margin: 0 0 1rem 0;">';
+        libresign_print_thank_you_subscription_message( $subscription_message );
+        echo '</div>';
+    }
+
+    foreach ( $purchase_notes as $purchase_note ) {
+        echo '<div class="libresign-thankyou-next-steps__purchase-note" style="margin: 0 0 1rem 0;">';
+        echo wpautop( do_shortcode( wp_kses_post( $purchase_note ) ) );
+        echo '</div>';
+    }
+
+    if ( '' !== $account_url ) {
+        echo '<p style="margin: 0; display: flex; flex-wrap: wrap; gap: 0.75rem;">';
+
+        printf(
+            '<a class="wp-block-button__link wp-element-button is-style-outline" href="%s">%s</a>',
+            esc_url( $account_url ),
+            esc_html__( 'Go to your dashboard', 'libresign-wp-customizations' )
+        );
+
+        echo '</p>';
+    }
+
+    echo '</div>';
+}
+add_action( 'woocommerce_thankyou', 'libresign_render_thank_you_next_steps', 11 );
 
 /**
  * Confirmation strings for each subscription status change that requires an extra step.
