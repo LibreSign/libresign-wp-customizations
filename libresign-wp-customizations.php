@@ -613,154 +613,6 @@ function libresign_get_nextcloud_url() {
 }
 
 /**
- * Add configurable post-purchase next-step fields to WooCommerce products.
- */
-function libresign_add_product_next_step_fields() {
-    echo '<div class="options_group">';
-
-    woocommerce_wp_text_input(
-        array(
-            'id'          => '_libresign_next_step_label',
-            'label'       => __( 'Next-step button label', 'libresign-wp-customizations' ),
-            'description' => __( 'Leave blank if this product has no product-specific next step.', 'libresign-wp-customizations' ),
-            'desc_tip'    => true,
-        )
-    );
-
-    woocommerce_wp_text_input(
-        array(
-            'id'          => '_libresign_next_step_url',
-            'label'       => __( 'Next-step URL', 'libresign-wp-customizations' ),
-            'description' => __( 'Shown on the order received page after this product is paid for.', 'libresign-wp-customizations' ),
-            'desc_tip'    => true,
-            'type'        => 'url',
-        )
-    );
-
-    woocommerce_wp_checkbox(
-        array(
-            'id'          => '_libresign_next_step_new_tab',
-            'label'       => __( 'Open in a new tab', 'libresign-wp-customizations' ),
-            'description' => __( 'Open this product’s next step in a separate browser tab.', 'libresign-wp-customizations' ),
-        )
-    );
-
-    echo '</div>';
-}
-add_action( 'woocommerce_product_options_general_product_data', 'libresign_add_product_next_step_fields' );
-
-/**
- * Save a product's post-purchase next step.
- *
- * @param WC_Product $product Product being saved.
- */
-function libresign_save_product_next_step_fields( $product ) {
-    $label   = isset( $_POST['_libresign_next_step_label'] ) ? sanitize_text_field( wp_unslash( $_POST['_libresign_next_step_label'] ) ) : '';
-    $url     = isset( $_POST['_libresign_next_step_url'] ) ? esc_url_raw( wp_unslash( $_POST['_libresign_next_step_url'] ) ) : '';
-    $new_tab = isset( $_POST['_libresign_next_step_new_tab'] ) ? 'yes' : 'no';
-
-    $product->update_meta_data( '_libresign_next_step_label', $label );
-    $product->update_meta_data( '_libresign_next_step_url', $url );
-    $product->update_meta_data( '_libresign_next_step_new_tab', $new_tab );
-}
-add_action( 'woocommerce_admin_process_product_object', 'libresign_save_product_next_step_fields' );
-
-/**
- * Get the next step configured for a product.
- *
- * @param WC_Product|int $product Product object or ID.
- * @return array|null
- */
-function libresign_get_product_next_step( $product ) {
-    $product = is_object( $product ) ? $product : wc_get_product( $product );
-
-    if ( ! $product ) {
-        return null;
-    }
-
-    $label   = trim( (string) $product->get_meta( '_libresign_next_step_label', true ) );
-    $url     = trim( (string) $product->get_meta( '_libresign_next_step_url', true ) );
-    $new_tab = 'yes' === $product->get_meta( '_libresign_next_step_new_tab', true );
-
-    if ( ( '' === $label || '' === $url ) && $product->get_parent_id() ) {
-        return libresign_get_product_next_step( $product->get_parent_id() );
-    }
-
-    if ( '' === $label || '' === $url ) {
-        return null;
-    }
-
-    return apply_filters(
-        'libresign_product_next_step',
-        array(
-            'label'   => $label,
-            'url'     => $url,
-            'new_tab' => $new_tab,
-        ),
-        $product
-    );
-}
-
-/**
- * Preserve the configured next step on the order item.
- *
- * This keeps existing orders stable if a product's next step changes later.
- *
- * @param WC_Order_Item_Product $item    Order item being created.
- * @param string                $item_key Cart item key.
- * @param array                 $values   Cart item values.
- */
-function libresign_store_product_next_step_on_order_item( $item, $item_key, $values ) {
-    unset( $item_key );
-
-    $product   = isset( $values['data'] ) ? $values['data'] : null;
-    $next_step = libresign_get_product_next_step( $product );
-
-    if ( ! $next_step ) {
-        return;
-    }
-
-    $item->add_meta_data( '_libresign_next_step_label', $next_step['label'], true );
-    $item->add_meta_data( '_libresign_next_step_url', $next_step['url'], true );
-    $item->add_meta_data( '_libresign_next_step_new_tab', $next_step['new_tab'] ? 'yes' : 'no', true );
-}
-add_action( 'woocommerce_checkout_create_order_line_item', 'libresign_store_product_next_step_on_order_item', 10, 3 );
-
-/**
- * Get the unique product-specific next steps for an order.
- *
- * @param WC_Order $order Order being displayed.
- * @return array
- */
-function libresign_get_order_next_steps( $order ) {
-    $next_steps = array();
-
-    foreach ( $order->get_items() as $item ) {
-        $label = trim( (string) $item->get_meta( '_libresign_next_step_label', true ) );
-        $url   = trim( (string) $item->get_meta( '_libresign_next_step_url', true ) );
-
-        if ( '' !== $label && '' !== $url ) {
-            $next_step = array(
-                'label'   => $label,
-                'url'     => $url,
-                'new_tab' => 'yes' === $item->get_meta( '_libresign_next_step_new_tab', true ),
-            );
-        } else {
-            $next_step = libresign_get_product_next_step( $item->get_product() );
-        }
-
-        if ( ! $next_step ) {
-            continue;
-        }
-
-        $key                = md5( $next_step['label'] . '|' . $next_step['url'] . '|' . (int) $next_step['new_tab'] );
-        $next_steps[ $key ] = $next_step;
-    }
-
-    return apply_filters( 'libresign_order_next_steps', array_values( $next_steps ), $order );
-}
-
-/**
  * Render a CTA on every customer account screen that points to the Nextcloud instance.
  */
 function libresign_render_nextcloud_account_button() {
@@ -831,6 +683,40 @@ function libresign_print_thank_you_subscription_message( $message ) {
 }
 
 /**
+ * Get the unique WooCommerce purchase notes for the products in an order.
+ *
+ * @param WC_Order $order Order being displayed.
+ * @return string[]
+ */
+function libresign_get_order_purchase_notes( $order ) {
+    $purchase_notes = array();
+
+    foreach ( $order->get_items() as $item ) {
+        $product       = $item->get_product();
+        $purchase_note = $product ? trim( (string) $product->get_purchase_note() ) : '';
+
+        if ( '' !== $purchase_note ) {
+            $purchase_notes[ md5( $purchase_note ) ] = $purchase_note;
+        }
+    }
+
+    return array_values( $purchase_notes );
+}
+
+/**
+ * Avoid repeating purchase notes in the order table after moving them to next steps.
+ *
+ * Other order screens keep WooCommerce's default behavior.
+ *
+ * @param string[] $statuses Order statuses that display purchase notes.
+ * @return string[]
+ */
+function libresign_hide_moved_purchase_notes_in_order_table( $statuses ) {
+    return function_exists( 'is_order_received_page' ) && is_order_received_page() ? array() : $statuses;
+}
+add_filter( 'woocommerce_purchase_note_order_statuses', 'libresign_hide_moved_purchase_notes_in_order_table', 99 );
+
+/**
  * Render the subscription status notice and relevant next steps on the order received page.
  *
  * @param int $order_id Order being displayed.
@@ -839,19 +725,21 @@ function libresign_render_thank_you_next_steps( $order_id = 0 ) {
     $subscription_message = libresign_thank_you_subscription_message();
     $order                = $order_id ? wc_get_order( $order_id ) : false;
     $account_url          = '';
-    $product_next_steps   = array();
+    $purchase_notes       = array();
 
     libresign_thank_you_subscription_message( '' );
 
-    if ( $order && is_user_logged_in() && $order->get_user_id() === get_current_user_id() ) {
-        $account_url = (string) wc_get_page_permalink( 'myaccount' );
-
+    if ( $order ) {
         if ( $order->is_paid() ) {
-            $product_next_steps = libresign_get_order_next_steps( $order );
+            $purchase_notes = libresign_get_order_purchase_notes( $order );
+        }
+
+        if ( is_user_logged_in() && $order->get_user_id() === get_current_user_id() ) {
+            $account_url = (string) wc_get_page_permalink( 'myaccount' );
         }
     }
 
-    if ( '' === $account_url && empty( $product_next_steps ) ) {
+    if ( '' === $account_url && empty( $purchase_notes ) ) {
         libresign_print_thank_you_subscription_message( $subscription_message );
 
         return;
@@ -870,28 +758,25 @@ function libresign_render_thank_you_next_steps( $order_id = 0 ) {
         echo '</div>';
     }
 
-    echo '<p style="margin: 0; display: flex; flex-wrap: wrap; gap: 0.75rem;">';
+    foreach ( $purchase_notes as $purchase_note ) {
+        echo '<div class="libresign-thankyou-next-steps__purchase-note" style="margin: 0 0 1rem 0;">';
+        echo wpautop( do_shortcode( wp_kses_post( $purchase_note ) ) );
+        echo '</div>';
+    }
 
     if ( '' !== $account_url ) {
+        echo '<p style="margin: 0; display: flex; flex-wrap: wrap; gap: 0.75rem;">';
+
         printf(
             '<a class="wp-block-button__link wp-element-button is-style-outline" href="%s">%s</a>',
             esc_url( $account_url ),
             esc_html__( 'Go to your dashboard', 'libresign-wp-customizations' )
         );
+
+        echo '</p>';
     }
 
-    foreach ( $product_next_steps as $next_step ) {
-        $target_attributes = $next_step['new_tab'] ? ' target="_blank" rel="noopener noreferrer"' : '';
-
-        printf(
-            '<a class="wp-block-button__link wp-element-button" href="%s"%s>%s</a>',
-            esc_url( $next_step['url'] ),
-            $target_attributes,
-            esc_html( $next_step['label'] )
-        );
-    }
-
-    echo '</p></div>';
+    echo '</div>';
 }
 add_action( 'woocommerce_thankyou', 'libresign_render_thank_you_next_steps', 11 );
 
