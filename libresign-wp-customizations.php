@@ -47,6 +47,13 @@ function libresign_is_my_account_front_page() {
 }
 
 /**
+ * Custom account endpoints added on top of WooCommerce's own, root-level My Account endpoints.
+ */
+function libresign_get_custom_root_account_endpoints() {
+    return array( 'ajuda' );
+}
+
+/**
  * Resolve a translated page ID when Polylang is active.
  */
 function libresign_get_translated_page_id( $page_id, $language = '' ) {
@@ -461,7 +468,7 @@ function libresign_register_root_my_account_endpoints() {
     }
 
     $myaccount_page_id = libresign_get_my_account_page_id();
-    $custom_endpoints  = array( 'ajuda' );
+    $custom_endpoints  = libresign_get_custom_root_account_endpoints();
 
     if ( ! libresign_is_my_account_front_page() ) {
         return;
@@ -668,7 +675,7 @@ function libresign_is_root_my_account_endpoint_request() {
 
     $segments   = explode( '/', $request_path );
     $first_slug = reset( $segments );
-    $query_vars = WC()->query->get_query_vars();
+    $query_vars = array_merge( WC()->query->get_query_vars(), libresign_get_custom_root_account_endpoints() );
 
     if ( 'my-account' === $first_slug ) {
         return true;
