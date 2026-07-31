@@ -23,7 +23,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-const LIBRESIGN_WP_REWRITE_VERSION = '7';
+const LIBRESIGN_WP_REWRITE_VERSION = '8';
 
 /**
  * Get the WooCommerce My Account page ID.
@@ -50,7 +50,7 @@ function libresign_is_my_account_front_page() {
  * Custom account endpoints added on top of WooCommerce's own, root-level My Account endpoints.
  */
 function libresign_get_custom_root_account_endpoints() {
-    return array( 'ajuda' );
+    return array( 'help' );
 }
 
 /**
@@ -389,7 +389,7 @@ function libresign_config_page() {
                             'post_status'       => ['publish', 'draft', 'pending', 'private'],
                         ]);
                         ?>
-                        <p class="description">Escolha uma página criada em <strong>Páginas</strong>. O conteúdo dela será exibido em <code>/ajuda</code>.</p>
+                        <p class="description">Escolha uma página criada em <strong>Páginas</strong>. O conteúdo dela será exibido em <code>/help</code>.</p>
                     </td>
                 </tr>
             </table>
@@ -739,7 +739,7 @@ function libresign_add_help_account_menu_item( $items ) {
 
     foreach ( $items as $key => $label ) {
         if ( 'customer-logout' === $key ) {
-            $new_items['ajuda'] = esc_html__( 'Ajuda', 'libresign-wp-customizations' );
+            $new_items['help'] = esc_html__( 'Ajuda', 'libresign-wp-customizations' );
         }
 
         $new_items[ $key ] = $label;
@@ -750,7 +750,7 @@ function libresign_add_help_account_menu_item( $items ) {
 add_filter( 'woocommerce_account_menu_items', 'libresign_add_help_account_menu_item', 20 );
 
 /**
- * Render the /ajuda account page.
+ * Render the /help account page.
  */
 function libresign_render_account_help_page() {
     if ( ! function_exists( 'is_user_logged_in' ) || ! is_user_logged_in() ) {
@@ -799,7 +799,7 @@ function libresign_render_account_help_page() {
         esc_html__( 'Ir para o sistema de assinaturas', 'libresign-wp-customizations' )
     );
 }
-add_action( 'woocommerce_account_ajuda_endpoint', 'libresign_render_account_help_page' );
+add_action( 'woocommerce_account_help_endpoint', 'libresign_render_account_help_page' );
 
 /**
  * Build the URL for the account help page.
@@ -809,11 +809,11 @@ function libresign_get_account_help_url() {
         $account_permalink = wc_get_page_permalink( 'myaccount' );
 
         if ( ! empty( $account_permalink ) ) {
-            return wc_get_endpoint_url( 'ajuda', '', $account_permalink );
+            return wc_get_endpoint_url( 'help', '', $account_permalink );
         }
     }
 
-    return home_url( '/ajuda/' );
+    return home_url( '/help/' );
 }
 
 /**
