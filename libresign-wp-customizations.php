@@ -703,14 +703,22 @@ function libresign_render_nextcloud_account_button() {
         return;
     }
 
+    $faq_link = sprintf(
+        '<a href="%s" target="_blank" rel="noopener noreferrer">%s</a>',
+        esc_url( LIBRESIGN_FAQ_URL ),
+        esc_html__( 'FAQ', 'libresign-wp-customizations' )
+    );
+
     printf(
-        '<div class="libresign-nextcloud-account-cta" style="margin-top: 1.5rem; padding: 1rem; border: 1px solid currentColor; border-radius: 0.75rem;"><p style="margin: 0 0 0.75rem 0;">%s</p><p style="margin: 0 0 1rem 0;"><a class="wp-block-button__link wp-element-button is-style-outline" href="%s" target="_blank" rel="noopener noreferrer">%s</a></p><p style="margin: 0;">%s <a href="%s" target="_blank" rel="noopener noreferrer">%s</a>.</p></div>',
+        '<div class="libresign-nextcloud-account-cta" style="margin-top: 1.5rem; padding: 1rem; border: 1px solid currentColor; border-radius: 0.75rem;"><p style="margin: 0 0 0.75rem 0;">%s</p><p style="margin: 0 0 1rem 0;"><a class="wp-block-button__link wp-element-button is-style-outline" href="%s" target="_blank" rel="noopener noreferrer">%s</a></p><p style="margin: 0;">%s</p></div>',
         esc_html__( 'Use as mesmas credenciais do WordPress para acessar o sistema de assinaturas.', 'libresign-wp-customizations' ),
         esc_url( $nextcloud_host ),
         esc_html__( 'Ir para o sistema de assinaturas', 'libresign-wp-customizations' ),
-        esc_html__( 'Se precisar de ajuda, veja nosso', 'libresign-wp-customizations' ),
-        esc_url( LIBRESIGN_FAQ_URL ),
-        esc_html__( 'FAQ', 'libresign-wp-customizations' )
+        sprintf(
+            /* translators: %s: link to the FAQ page */
+            esc_html__( 'Se precisar de ajuda, veja nosso %s.', 'libresign-wp-customizations' ),
+            $faq_link
+        )
     );
 }
 add_action( 'woocommerce_before_account_navigation', 'libresign_render_nextcloud_account_button', 20 );
