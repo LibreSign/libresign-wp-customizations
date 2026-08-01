@@ -724,6 +724,15 @@ function libresign_render_nextcloud_account_button() {
 add_action( 'woocommerce_before_account_navigation', 'libresign_render_nextcloud_account_button', 20 );
 
 /**
+ * Query vars of the request currently being rendered.
+ */
+function libresign_get_current_query_vars() {
+    global $wp;
+
+    return isset( $wp->query_vars ) ? $wp->query_vars : array();
+}
+
+/**
  * Customer navigation entries kept, in display order.
  */
 function libresign_get_account_menu_order() {
@@ -745,13 +754,12 @@ function libresign_get_account_menu_labels() {
 }
 
 /**
- * Detail endpoints kept out of the navigation, mapped to the entry they belong to.
+ * Detail endpoints neither core nor Subscriptions already highlights, mapped to their entry.
  */
 function libresign_get_account_menu_item_aliases() {
     return array(
-        'orders'          => array( 'view-order' ),
-        'subscriptions'   => array( 'view-subscription', 'subscription-payment-method' ),
-        'payment-methods' => array( 'edit-address', 'add-payment-method' ),
+        'subscriptions'   => array( 'subscription-payment-method' ),
+        'payment-methods' => array( 'edit-address' ),
     );
 }
 
@@ -786,10 +794,10 @@ function libresign_filter_account_menu_item_classes( $classes, $endpoint ) {
         return $classes;
     }
 
-    global $wp;
+    $query_vars = libresign_get_current_query_vars();
 
     foreach ( $aliases[ $endpoint ] as $alias ) {
-        if ( isset( $wp->query_vars[ $alias ] ) ) {
+        if ( isset( $query_vars[ $alias ] ) ) {
             $classes[] = 'is-active';
             break;
         }
@@ -805,16 +813,36 @@ add_filter( 'woocommerce_account_menu_item_classes', 'libresign_filter_account_m
 function libresign_filter_account_endpoint_title( $title, $endpoint ) {
     $labels = libresign_get_account_menu_labels();
 
-    return isset( $labels[ $endpoint ] ) ? $labels[ $endpoint ] : $title;
+    if ( ! isset( $labels[ $endpoint ] ) ) {
+        return $title;
+    }
+
+    $query_vars  = libresign_get_current_query_vars();
+    $page_number = isset( $query_vars[ $endpoint ] ) ? intval( $query_vars[ $endpoint ] ) : 0;
+
+    if ( $page_number < 2 ) {
+        return $labels[ $endpoint ];
+    }
+
+    return sprintf(
+        /* translators: 1: navigation label, 2: page number */
+        __( '%1$s (page %2$d)', 'libresign-wp-customizations' ),
+        $labels[ $endpoint ],
+        $page_number
+    );
 }
 
 /**
  * Page title for a single invoice.
  */
 function libresign_filter_view_order_endpoint_title( $title ) {
-    global $wp;
+    $query_vars = libresign_get_current_query_vars();
 
-    $order = isset( $wp->query_vars['view-order'] ) ? wc_get_order( $wp->query_vars['view-order'] ) : false;
+    if ( ! isset( $query_vars['view-order'] ) ) {
+        return $title;
+    }
+
+    $order = wc_get_order( $query_vars['view-order'] );
 
     if ( ! $order ) {
         return $title;
@@ -826,8 +854,6 @@ function libresign_filter_view_order_endpoint_title( $title ) {
 
 /**
  * Keep the endpoint page titles in sync with the navigation labels.
- *
- * On `init` because the labels are translated, and that must not run earlier.
  */
 function libresign_register_account_endpoint_titles() {
     foreach ( array_keys( libresign_get_account_menu_labels() ) as $endpoint ) {
@@ -857,21 +883,34 @@ function libresign_render_payment_methods_section_title() {
 add_action( 'woocommerce_before_account_payment_methods', 'libresign_render_payment_methods_section_title', 5 );
 
 /**
- * Render the addresses inside the billing screen.
- *
- * On the endpoint rather than on `woocommerce_after_account_payment_methods` so the
- * block lands after the "add payment method" button, printed past that action.
+ * Render the addresses after the whole payment methods template, button included.
  */
 function libresign_render_addresses_on_payment_methods() {
-    if ( ! function_exists( 'wc_get_template' ) ) {
-        return;
-    }
-
     libresign_render_account_section_title( __( 'Addresses', 'libresign-wp-customizations' ) );
 
     wc_get_template( 'myaccount/my-address.php' );
 }
 add_action( 'woocommerce_account_payment-methods_endpoint', 'libresign_render_addresses_on_payment_methods', 20 );
+
+/**
+ * Send the standalone addresses list to the billing screen it was merged into.
+ */
+function libresign_redirect_addresses_to_billing() {
+    if ( ! function_exists( 'is_account_page' ) || ! is_account_page() ) {
+        return;
+    }
+
+    $query_vars        = libresign_get_current_query_vars();
+    $is_addresses_list = isset( $query_vars['edit-address'] ) && '' === $query_vars['edit-address'];
+
+    if ( ! $is_addresses_list ) {
+        return;
+    }
+
+    wp_safe_redirect( wc_get_endpoint_url( 'payment-methods', '', wc_get_page_permalink( 'myaccount' ) ) );
+    exit;
+}
+add_action( 'template_redirect', 'libresign_redirect_addresses_to_billing' );
 
 /**
  * Describe the addresses in terms of the subscription instead of a checkout.
