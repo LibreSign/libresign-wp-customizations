@@ -81,6 +81,7 @@ add_action( 'plugins_loaded', function () {
 
 require_once __DIR__ . '/includes/site-fragment-sync.php';
 require_once __DIR__ . '/includes/github-site-webhook.php';
+require_once __DIR__ . '/includes/account-navigation.php';
 
 
 /**
