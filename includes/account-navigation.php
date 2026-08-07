@@ -157,7 +157,7 @@ add_action( 'init', 'libresign_register_account_endpoint_titles' );
  */
 function libresign_render_account_section_title( $title ) {
     printf(
-        '<h2 class="libresign-account-section-title" style="margin: 2.5rem 0 1rem 0;">%s</h2>',
+        '<h2 class="libresign-account-section-title">%s</h2>',
         esc_html( $title )
     );
 }

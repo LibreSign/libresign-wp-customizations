@@ -711,7 +711,7 @@ function libresign_render_nextcloud_account_button() {
     );
 
     printf(
-        '<div class="libresign-nextcloud-account-cta" style="margin-top: 1.5rem; padding: 1rem; border: 1px solid currentColor; border-radius: 0.75rem;"><p style="margin: 0 0 0.75rem 0;">%s</p><p style="margin: 0 0 1rem 0;"><a class="wp-block-button__link wp-element-button is-style-outline" href="%s" target="_blank" rel="noopener noreferrer">%s</a></p><p style="margin: 0;">%s</p></div>',
+        '<div class="libresign-nextcloud-account-cta"><p>%s</p><p><a class="wp-block-button__link wp-element-button" href="%s" target="_blank" rel="noopener noreferrer">%s</a></p><p>%s</p></div>',
         esc_html__( 'Use as mesmas credenciais do WordPress para acessar o sistema de assinaturas.', 'libresign-wp-customizations' ),
         esc_url( $nextcloud_host ),
         esc_html__( 'Ir para o sistema de assinaturas', 'libresign-wp-customizations' ),
@@ -849,7 +849,7 @@ function libresign_render_subscription_change_confirmation() {
     );
 
     $message = sprintf(
-        '%s<br /><a href="%s" class="button" style="margin-top: 0.75rem; margin-right: 0.5rem;">%s</a> <a href="%s" class="button" style="margin-top: 0.75rem;">%s</a>',
+        '<span class="libresign-confirm-question">%s</span><span class="libresign-confirm-actions"><a href="%s" class="button">%s</a> <a href="%s" class="button">%s</a></span>',
         esc_html( $strings['question'] ),
         esc_url( $confirm_url ),
         esc_html( $strings['confirm'] ),
