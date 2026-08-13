@@ -119,53 +119,86 @@ function libresign_wp_add_noindex_meta_tag() {
 add_action('wp_head', 'libresign_wp_add_noindex_meta_tag');
 
 /**
- * Deploy the site after change the status of post
+ * Trigger the site deploy workflow through GitHub's repository dispatch API.
+ *
+ * @return array<string, mixed>|WP_Error
+ */
+function libresign_dispatch_github_site_deploy() {
+    $deploy_token = function_exists('libresign_decrypt_plugin_secret')
+        ? libresign_decrypt_plugin_secret(get_option('libresign_github_deploy_token', ''))
+        : '';
+    $repository = trim((string) get_option('libresign_github_deploy_organization_repository', ''));
+
+    if ('' === $deploy_token || '' === $repository) {
+        return new WP_Error(
+            'libresign_github_deploy_configuration_missing',
+            __('Configure o token e o repositório do GitHub antes de executar o deploy.', 'libresign-wp-customizations')
+        );
+    }
+
+    if (!preg_match('/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/', $repository)) {
+        return new WP_Error(
+            'libresign_github_deploy_repository_invalid',
+            __('O repositório deve estar no formato organização/repositório.', 'libresign-wp-customizations')
+        );
+    }
+
+    $response = wp_remote_post('https://api.github.com/repos/' . $repository . '/dispatches', [
+        'body'        => wp_json_encode(['event_type' => 'deploy-site']),
+        'headers'     => [
+            'Authorization' => 'Bearer ' . $deploy_token,
+            'Accept'         => 'application/vnd.github+json',
+            'Content-Type'   => 'application/json',
+            'User-Agent'     => 'LibreSign WordPress Plugin',
+        ],
+        'timeout'     => 15,
+    ]);
+
+    if (is_wp_error($response)) {
+        return $response;
+    }
+
+    $code = (int) wp_remote_retrieve_response_code($response);
+    if ($code < 200 || $code >= 300) {
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+        $message = is_array($body) && !empty($body['message'])
+            ? (string) $body['message']
+            : sprintf(__('O GitHub respondeu com HTTP %d.', 'libresign-wp-customizations'), $code);
+
+        $message = sprintf(__('GitHub HTTP %1$d: %2$s', 'libresign-wp-customizations'), $code, $message);
+
+        return new WP_Error('libresign_github_deploy_failed', $message, ['status' => $code]);
+    }
+
+    return ['code' => $code, 'repository' => $repository];
+}
+
+/**
+ * Deploy the site after changing a post to publish.
  */
 function libresign_trigger_github_action_on_publish($new_status, $old_status, $post) {
-    if ($new_status === 'publish' || $old_status === 'publish' && $post->post_type === 'post') {
-        $encripted = get_option('libresign_github_deploy_token');
-        $key = hash('sha256', AUTH_KEY . SECURE_AUTH_SALT);
-        $iv = substr(hash('sha256', NONCE_SALT), 0, 16);
-        $deploy_token = openssl_decrypt(base64_decode($encripted), 'AES-256-CBC', $key, 0, $iv);
-        $organizationRepository = get_option('libresign_github_deploy_organization_repository');
-        $response = wp_remote_post('https://api.github.com/repos/' . $organizationRepository . '/dispatches', [
-            'body'        => json_encode([
-                'event_type' => 'deploy-site',
-            ]),
-            'headers'     => [
-                'Authorization' => 'Bearer ' . $deploy_token,
-                'Accept'        => 'application/vnd.github+json',
-                'User-Agent'    => 'WordPress Hook',
-            ],
-            'timeout'     => 15,
-        ]);
+    if (($new_status === 'publish' || $old_status === 'publish') && $post->post_type === 'post') {
+        $result = libresign_dispatch_github_site_deploy();
+        $repository = get_option('libresign_github_deploy_organization_repository');
+
+        if (is_wp_error($result)) {
+            $status_data = [
+                'type'    => 'error',
+                'message' => 'Erro ao acionar deploy.<br />' . esc_html($result->get_error_message()),
+            ];
+        } else {
+            $status_data = [
+                'type'    => 'success',
+                'message' => 'Ação de deploy enviada com sucesso. Acompanhe <a href="' . esc_url('https://github.com/' . $repository . '/actions') . '" target="_blank" rel="noopener noreferrer">aqui</a>',
+            ];
+        }
 
         $post_data = [
             'post_id'    => $post->ID,
             'post_title' => get_the_title($post->ID),
             'language'   => function_exists('pll_get_post_language') ? pll_get_post_language($post->ID) : 'indefinido',
         ];
-
-        if (is_wp_error($response)) {
-            $post_data = array_merge($post_data, [
-                'type'    => 'error',
-                'message' => $response->get_error_message(),
-            ]);
-        } else {
-            $code = wp_remote_retrieve_response_code($response);
-            if ($code === 204) {
-                $post_data = array_merge($post_data, [
-                    'type'    => 'success',
-                    'message' => 'Ação de deploy enviada com sucesso. Acompanhe <a href="https://github.com/' . $organizationRepository.'/actions" target="_blank">aqui</a>',
-                ]);
-            } else {
-                $body = json_decode($response['body'], true);
-                $post_data = array_merge($post_data, [
-                    'type'    => 'error',
-                    'message' => "Erro ao acionar deploy.<br />Código: <strong>$code</strong>.<br />Message: <strong>{$body['message']}</strong>",
-                ]);
-            }
-        }
+        $post_data = array_merge($post_data, $status_data);
 
         $transient_key = 'libresign_github_action_status_' . get_current_user_id();
         $status_list = get_transient($transient_key);
@@ -177,6 +210,49 @@ function libresign_trigger_github_action_on_publish($new_status, $old_status, $p
     }
 }
 add_action('transition_post_status', 'libresign_trigger_github_action_on_publish', 10, 3);
+
+/**
+ * Run the same GitHub dispatch used by post publishing from the settings page.
+ */
+function libresign_handle_manual_github_deploy() {
+    if (!current_user_can('manage_options')) {
+        wp_die(__('Você não tem permissão para executar o deploy.', 'libresign-wp-customizations'));
+    }
+
+    check_admin_referer('libresign_manual_github_deploy');
+
+    $result = libresign_dispatch_github_site_deploy();
+    $repository = get_option('libresign_github_deploy_organization_repository');
+    if (is_wp_error($result)) {
+        $status = [
+            'type'        => 'error',
+            'post_title'  => 'Deploy manual',
+            'post_id'     => 0,
+            'language'    => '',
+            'message'     => 'Erro ao acionar deploy.<br />' . esc_html($result->get_error_message()),
+        ];
+    } else {
+        $status = [
+            'type'        => 'success',
+            'post_title'  => 'Deploy manual',
+            'post_id'     => 0,
+            'language'    => '',
+            'message'     => 'Ação de deploy enviada com sucesso. Acompanhe <a href="' . esc_url('https://github.com/' . $repository . '/actions') . '" target="_blank" rel="noopener noreferrer">as execuções no GitHub</a>.',
+        ];
+    }
+
+    $transient_key = 'libresign_github_action_status_' . get_current_user_id();
+    $status_list = get_transient($transient_key);
+    if (!is_array($status_list)) {
+        $status_list = [];
+    }
+    $status_list[] = $status;
+    set_transient($transient_key, $status_list, 60);
+
+    wp_safe_redirect(admin_url('options-general.php?page=libresign-config'));
+    exit;
+}
+add_action('admin_post_libresign_manual_github_deploy', 'libresign_handle_manual_github_deploy');
 
 /**
  * Display the status after edit
@@ -296,6 +372,20 @@ function libresign_config_page() {
                             class="regular-text"
                         />
                         <p class="description">Exemplo: <code>LibreSign/site</code>. Este valor também é usado para validar o repositório recebido pela webhook do GitHub.</p>
+                    </td>
+                </tr>
+
+                <tr valign="top">
+                    <th scope="row">Teste de deploy</th>
+                    <td>
+                        <?php
+                        $manual_deploy_url = wp_nonce_url(
+                            admin_url('admin-post.php?action=libresign_manual_github_deploy'),
+                            'libresign_manual_github_deploy'
+                        );
+                        ?>
+                        <a class="button button-secondary" href="<?php echo esc_url($manual_deploy_url); ?>">Executar deploy manualmente</a>
+                        <p class="description">Dispara o evento <code>deploy-site</code> no repositório configurado, sem publicar um post. Use para testar o token, o repositório e o workflow do GitHub Actions.</p>
                     </td>
                 </tr>
 
