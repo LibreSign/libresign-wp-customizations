@@ -171,17 +171,20 @@ function libresign_trigger_github_action_on_publish($new_status, $old_status, $p
             'message' => $response->get_error_message(),
         ]);
     } else {
-        $code = (int) wp_remote_retrieve_response_code($response);
-        if ($code === 204) {
+        $response_code = (int) wp_remote_retrieve_response_code($response);
+        if ($response_code === 204) {
             $post_data = array_merge($post_data, [
                 'type'    => 'success',
                 'message' => DeployDispatch::success_message($organizationRepository),
             ]);
         } else {
-            $body = json_decode(wp_remote_retrieve_body($response), true);
+            $response_body = json_decode(wp_remote_retrieve_body($response), true);
             $post_data = array_merge($post_data, [
                 'type'    => 'error',
-                'message' => DeployDispatch::failure_message($code, isset($body['message']) ? $body['message'] : ''),
+                'message' => DeployDispatch::failure_message(
+                    $response_code,
+                    isset($response_body['message']) ? $response_body['message'] : ''
+                ),
             ]);
         }
     }

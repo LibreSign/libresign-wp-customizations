@@ -51,20 +51,20 @@ final class SecretTest extends TestCase {
 	}
 
 	public function test_another_installation_cannot_read_the_value() {
-		$stored = self::secret()->encrypt( 'a-shared-secret' );
-		$other  = Secret::from_salts( 'another-auth-key', 'another-secure-auth-salt', 'another-nonce-salt' );
+		$stored_value         = self::secret()->encrypt( 'a-shared-secret' );
+		$another_installation = Secret::from_salts( 'another-auth-key', 'another-secure-auth-salt', 'another-nonce-salt' );
 
-		$this->assertNotSame( 'a-shared-secret', $other->decrypt( $stored ) );
+		$this->assertNotSame( 'a-shared-secret', $another_installation->decrypt( $stored_value ) );
 	}
 
 	/**
 	 * @dataProvider provide_stored_values
 	 *
-	 * @param string $stored   Value found in the database.
+	 * @param string $stored_value   Value found in the database.
 	 * @param string $expected Value the plugin uses.
 	 */
-	public function test_a_value_that_is_not_encrypted_is_used_as_it_is( $stored, $expected ) {
-		$this->assertSame( $expected, self::secret()->decrypt( $stored ) );
+	public function test_a_value_that_is_not_encrypted_is_used_as_it_is( $stored_value, $expected ) {
+		$this->assertSame( $expected, self::secret()->decrypt( $stored_value ) );
 	}
 
 	/**

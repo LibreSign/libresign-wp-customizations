@@ -53,7 +53,7 @@ final class SiteDeployTest extends TestCase {
 	}
 
 	public function test_the_workflow_name_may_come_from_the_workflow_instead_of_the_run() {
-		$run = WorkflowRun::from_payload(
+		$workflow_run = WorkflowRun::from_payload(
 			array(
 				'action'       => 'completed',
 				'repository'   => array( 'full_name' => 'LibreSign/site' ),
@@ -65,7 +65,7 @@ final class SiteDeployTest extends TestCase {
 			)
 		);
 
-		$this->assertTrue( self::site_deploy()->is_production_run( $run ) );
+		$this->assertTrue( self::site_deploy()->is_production_run( $workflow_run ) );
 	}
 
 	/**
@@ -91,11 +91,11 @@ final class SiteDeployTest extends TestCase {
 	}
 
 	public function test_the_expected_run_is_the_configured_one() {
-		$deploy = new SiteDeploy( 'LibreSign/staging', 'main', 'deploy' );
+		$site_deploy = new SiteDeploy( 'LibreSign/staging', 'main', 'deploy' );
 
-		$this->assertFalse( $deploy->is_production_run( self::production_run() ) );
+		$this->assertFalse( $site_deploy->is_production_run( self::production_run() ) );
 		$this->assertTrue(
-			$deploy->is_production_run(
+			$site_deploy->is_production_run(
 				self::production_run(
 					array(
 						'repository'   => array( 'full_name' => 'LibreSign/staging' ),

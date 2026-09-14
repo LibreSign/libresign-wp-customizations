@@ -89,20 +89,20 @@ final class WebhookGate {
 			);
 		}
 
-		$run = WorkflowRun::from_payload( $payload );
+		$workflow_run = WorkflowRun::from_payload( $payload );
 
-		if ( ! $this->site_deploy->is_production_run( $run ) ) {
+		if ( ! $this->site_deploy->is_production_run( $workflow_run ) ) {
 			return WebhookDecision::ignore(
 				'not_production_deploy',
 				array(
-					'repository'    => $run->repository(),
-					'workflow_name' => $run->workflow_name(),
-					'head_branch'   => $run->head_branch(),
-					'conclusion'    => $run->conclusion(),
+					'repository'    => $workflow_run->repository(),
+					'workflow_name' => $workflow_run->workflow_name(),
+					'head_branch'   => $workflow_run->head_branch(),
+					'conclusion'    => $workflow_run->conclusion(),
 				)
 			);
 		}
 
-		return WebhookDecision::deploy( $run );
+		return WebhookDecision::deploy( $workflow_run );
 	}
 }
