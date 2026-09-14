@@ -8,6 +8,7 @@
 namespace LibreSign\WPCustomizations\Tests\Integration\Includes;
 
 use LibreSign\WPCustomizations\Tests\Support\FakeHttp;
+use LibreSign\WPCustomizations\Tests\Support\PluginSecret;
 use LibreSign\WPCustomizations\Tests\Support\RegistersPluginSettings;
 use WP_Error;
 use WP_REST_Request;
@@ -176,6 +177,8 @@ final class GithubSiteWebhookTest extends WP_UnitTestCase {
 	 * @param array<string, mixed> $overrides Values replacing the production defaults.
 	 */
 	public function test_a_run_that_is_not_the_production_deploy_is_ignored( $overrides ) {
+		$this->origin->answer_with( FakeHttp::response( 200, '<header>site</header>' ) );
+
 		$body = wp_json_encode( self::production_payload( $overrides ) );
 
 		$response = rest_get_server()->dispatch( $this->signed_request( 'workflow_run', $body ) );
@@ -363,8 +366,12 @@ final class GithubSiteWebhookTest extends WP_UnitTestCase {
 	 * Current behaviour, and a bug: update_option() sanitizes the value and,
 	 * when the option does not exist yet, hands it to add_option(), which
 	 * sanitizes it again. A secret saved on a site that never had one is
-	 * therefore encrypted twice, and every delivery GitHub signs with it is
-	 * answered with an invalid signature until the secret is saved again.
+	 * therefore encrypted twice, so decrypting it once returns the encrypted
+	 * secret, and every delivery GitHub signs with it is answered with an
+	 * invalid signature until the secret is saved again.
+	 *
+	 * Fixing the double sanitizing turns this test red: replace it with the
+	 * round trip of the test above, which is what the behaviour becomes.
 	 */
 	public function test_a_secret_saved_for_the_first_time_is_encrypted_twice() {
 		delete_option( 'libresign_github_webhook_secret' );
@@ -372,7 +379,7 @@ final class GithubSiteWebhookTest extends WP_UnitTestCase {
 
 		update_option( 'libresign_github_webhook_secret', 'saved-from-the-form' );
 
-		$this->assertNotSame( 'saved-from-the-form', libresign_github_webhook_secret() );
+		$this->assertSame( PluginSecret::encrypt( 'saved-from-the-form' ), libresign_github_webhook_secret() );
 	}
 
 	public function test_saving_an_empty_secret_keeps_the_previous_one() {

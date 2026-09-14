@@ -37,6 +37,10 @@ final class FakeHttp {
 	/**
 	 * Answer each URL with its own response, falling back to the '*' entry.
 	 *
+	 * A URL with neither an entry of its own nor a '*' fallback is answered with
+	 * an error naming it, so a request that drifts fails as an assertion instead
+	 * of as an undefined array key.
+	 *
 	 * @param array<string, array<string, mixed>|WP_Error> $responses Response per URL.
 	 * @return void
 	 */
@@ -49,7 +53,18 @@ final class FakeHttp {
 					'args' => (array) $args,
 				);
 
-				return isset( $responses[ $url ] ) ? $responses[ $url ] : $responses['*'];
+				if ( isset( $responses[ $url ] ) ) {
+					return $responses[ $url ];
+				}
+
+				if ( isset( $responses['*'] ) ) {
+					return $responses['*'];
+				}
+
+				return new WP_Error(
+					'libresign_tests_http_unstubbed',
+					sprintf( 'No response was stubbed for %s.', $url )
+				);
 			},
 			10,
 			3
