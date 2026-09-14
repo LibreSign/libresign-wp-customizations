@@ -173,9 +173,9 @@ function libresign_record_site_fragment_sync_result( $status, $payload ) {
  * @return WP_REST_Response|WP_Error
  */
 function libresign_receive_github_site_deploy_webhook( $request ) {
-	$gate = new WebhookGate( libresign_github_webhook_secret(), libresign_site_deploy() );
+	$webhook_gate = new WebhookGate( libresign_github_webhook_secret(), libresign_site_deploy() );
 
-	$decision = $gate->decide(
+	$decision = $webhook_gate->decide(
 		new WebhookRequest(
 			(string) $request->get_header( 'user-agent' ),
 			(string) $request->get_header( 'x-github-event' ),
@@ -206,7 +206,7 @@ function libresign_receive_github_site_deploy_webhook( $request ) {
 		return libresign_github_site_webhook_ignored_response( $decision->data() );
 	}
 
-	$run         = $decision->workflow_run();
+	$workflow_run         = $decision->workflow_run();
 	$delivery_id = (string) $request->get_header( 'x-github-delivery' );
 
 	if ( ! libresign_mark_github_delivery_once( $delivery_id ) ) {
@@ -222,9 +222,9 @@ function libresign_receive_github_site_deploy_webhook( $request ) {
 		libresign_site_origin(),
 		array( 'header', 'footer' ),
 		array(
-			'generated_at' => '' === $run->updated_at() ? current_time( 'mysql', true ) : $run->updated_at(),
-			'source_sha'   => $run->head_sha(),
-			'source_url'   => $run->html_url(),
+			'generated_at' => '' === $workflow_run->updated_at() ? current_time( 'mysql', true ) : $workflow_run->updated_at(),
+			'source_sha'   => $workflow_run->head_sha(),
+			'source_url'   => $workflow_run->html_url(),
 		)
 	);
 
@@ -244,11 +244,11 @@ function libresign_receive_github_site_deploy_webhook( $request ) {
 		'synced',
 		array(
 			'delivery_id' => $delivery_id,
-			'repository'  => $run->repository(),
-			'workflow'    => $run->workflow_name(),
-			'head_branch' => $run->head_branch(),
-			'source_sha'  => $run->head_sha(),
-			'source_url'  => $run->html_url(),
+			'repository'  => $workflow_run->repository(),
+			'workflow'    => $workflow_run->workflow_name(),
+			'head_branch' => $workflow_run->head_branch(),
+			'source_sha'  => $workflow_run->head_sha(),
+			'source_url'  => $workflow_run->html_url(),
 			'synced'      => $sync_result['synced'],
 		)
 	);
@@ -257,8 +257,8 @@ function libresign_receive_github_site_deploy_webhook( $request ) {
 		array(
 			'status'      => 'synced',
 			'delivery_id' => $delivery_id,
-			'repository'  => $run->repository(),
-			'workflow'    => $run->workflow_name(),
+			'repository'  => $workflow_run->repository(),
+			'workflow'    => $workflow_run->workflow_name(),
 			'origin'      => $sync_result['origin'],
 			'synced'      => $sync_result['synced'],
 		)

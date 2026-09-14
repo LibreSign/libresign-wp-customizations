@@ -148,13 +148,13 @@ final class WebhookGateTest extends TestCase {
 	 * @dataProvider provide_non_production_payloads
 	 *
 	 * @param array<string, mixed>  $overrides Values replacing the production defaults.
-	 * @param array<string, string> $reported  Details expected in the answer.
+	 * @param array<string, string> $reported_details  Details expected in the answer.
 	 */
-	public function test_a_run_that_is_not_the_production_deploy_is_ignored( $overrides, $reported ) {
+	public function test_a_run_that_is_not_the_production_deploy_is_ignored( $overrides, $reported_details ) {
 		$decision = self::gate()->decide( self::signed_delivery( 'workflow_run', self::production_payload( $overrides ) ) );
 
 		$this->assertTrue( $decision->is_ignored() );
-		$this->assertSame( array_merge( array( 'reason' => 'not_production_deploy' ), $reported ), $decision->data() );
+		$this->assertSame( array_merge( array( 'reason' => 'not_production_deploy' ), $reported_details ), $decision->data() );
 	}
 
 	/**

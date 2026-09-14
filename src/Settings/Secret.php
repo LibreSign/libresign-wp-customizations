@@ -24,22 +24,22 @@ final class Secret {
 	 *
 	 * @var string
 	 */
-	private $key;
+	private $encryption_key;
 
 	/**
 	 * Initialization vector.
 	 *
 	 * @var string
 	 */
-	private $iv;
+	private $initialization_vector;
 
 	/**
-	 * @param string $key Encryption key.
-	 * @param string $iv  Initialization vector.
+	 * @param string $encryption_key        Encryption key.
+	 * @param string $initialization_vector Initialization vector.
 	 */
-	public function __construct( $key, $iv ) {
-		$this->key = (string) $key;
-		$this->iv  = (string) $iv;
+	public function __construct( $encryption_key, $initialization_vector ) {
+		$this->encryption_key        = (string) $encryption_key;
+		$this->initialization_vector = (string) $initialization_vector;
 	}
 
 	/**
@@ -64,17 +64,19 @@ final class Secret {
 	 * update_option() hands a value that does not exist yet to add_option(), so
 	 * encrypting has to be idempotent or the value is stored encrypted twice.
 	 *
-	 * @param string $value Plain text value.
+	 * @param string $plain_value Plain text value.
 	 * @return string
 	 */
-	public function encrypt( $value ) {
-		$value = trim( (string) $value );
+	public function encrypt( $plain_value ) {
+		$plain_value = trim( (string) $plain_value );
 
-		if ( $this->decrypt( $value ) !== $value ) {
-			return $value;
+		if ( $this->decrypt( $plain_value ) !== $plain_value ) {
+			return $plain_value;
 		}
 
-		return base64_encode( (string) openssl_encrypt( $value, self::CIPHER, $this->key, 0, $this->iv ) );
+		return base64_encode(
+			(string) openssl_encrypt( $plain_value, self::CIPHER, $this->encryption_key, 0, $this->initialization_vector )
+		);
 	}
 
 	/**
@@ -83,24 +85,24 @@ final class Secret {
 	 * A value saved before the encryption existed, or by hand, is stored in
 	 * plain text and has to keep working.
 	 *
-	 * @param string $value Stored value.
+	 * @param string $stored_value Stored value.
 	 * @return string
 	 */
-	public function decrypt( $value ) {
-		$value = trim( (string) $value );
+	public function decrypt( $stored_value ) {
+		$stored_value = trim( (string) $stored_value );
 
-		if ( '' === $value ) {
+		if ( '' === $stored_value ) {
 			return '';
 		}
 
-		$decoded = base64_decode( $value, true );
+		$decoded_value = base64_decode( $stored_value, true );
 
-		if ( false === $decoded ) {
-			return $value;
+		if ( false === $decoded_value ) {
+			return $stored_value;
 		}
 
-		$decrypted = openssl_decrypt( $decoded, self::CIPHER, $this->key, 0, $this->iv );
+		$decrypted_value = openssl_decrypt( $decoded_value, self::CIPHER, $this->encryption_key, 0, $this->initialization_vector );
 
-		return false === $decrypted ? $value : trim( $decrypted );
+		return false === $decrypted_value ? $stored_value : trim( $decrypted_value );
 	}
 }

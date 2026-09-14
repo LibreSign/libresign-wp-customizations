@@ -40,10 +40,10 @@ final class Autoloader {
 			return;
 		}
 
-		$path = __DIR__ . '/' . str_replace( '\\', '/', substr( $class_name, strlen( self::PREFIX ) ) ) . '.php';
+		$file_path = __DIR__ . '/' . str_replace( '\\', '/', substr( $class_name, strlen( self::PREFIX ) ) ) . '.php';
 
-		if ( is_readable( $path ) ) {
-			require_once $path;
+		if ( is_readable( $file_path ) ) {
+			require_once $file_path;
 		}
 	}
 }

@@ -113,20 +113,20 @@ final class WorkflowRun {
 	/**
 	 * Value at a path of the payload, as a trimmed string.
 	 *
-	 * @param string[] $path Keys to walk.
+	 * @param string[] $field_path Keys to walk.
 	 * @return string
 	 */
-	private function text( array $path ) {
-		$value = $this->payload;
+	private function text( array $field_path ) {
+		$field_value = $this->payload;
 
-		foreach ( $path as $key ) {
-			if ( ! is_array( $value ) || ! isset( $value[ $key ] ) ) {
+		foreach ( $field_path as $field_name ) {
+			if ( ! is_array( $field_value ) || ! isset( $field_value[ $field_name ] ) ) {
 				return '';
 			}
 
-			$value = $value[ $key ];
+			$field_value = $field_value[ $field_name ];
 		}
 
-		return is_scalar( $value ) ? trim( (string) $value ) : '';
+		return is_scalar( $field_value ) ? trim( (string) $field_value ) : '';
 	}
 }

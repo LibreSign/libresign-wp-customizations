@@ -26,37 +26,37 @@ final class SiteDeploy {
 	 *
 	 * @var string
 	 */
-	private $branch;
+	private $branch_name;
 
 	/**
 	 * Name of the workflow publishing the site.
 	 *
 	 * @var string
 	 */
-	private $workflow;
+	private $workflow_name;
 
 	/**
 	 * @param string $repository Repository publishing the site.
-	 * @param string $branch     Branch the site is published from.
-	 * @param string $workflow   Name of the workflow publishing the site.
+	 * @param string $branch_name     Branch the site is published from.
+	 * @param string $workflow_name   Name of the workflow publishing the site.
 	 */
-	public function __construct( $repository, $branch, $workflow ) {
-		$this->repository = (string) $repository;
-		$this->branch     = (string) $branch;
-		$this->workflow   = (string) $workflow;
+	public function __construct( $repository, $branch_name, $workflow_name ) {
+		$this->repository    = (string) $repository;
+		$this->branch_name   = (string) $branch_name;
+		$this->workflow_name = (string) $workflow_name;
 	}
 
 	/**
 	 * Whether the run is the one that just put the site live.
 	 *
-	 * @param WorkflowRun $run Run reported by GitHub.
+	 * @param WorkflowRun $workflow_run Run reported by GitHub.
 	 * @return bool
 	 */
-	public function is_production_run( WorkflowRun $run ) {
-		return $this->repository === $run->repository()
-			&& 'completed' === $run->action()
-			&& 'success' === $run->conclusion()
-			&& $this->branch === $run->head_branch()
-			&& $this->workflow === $run->workflow_name();
+	public function is_production_run( WorkflowRun $workflow_run ) {
+		return $this->repository === $workflow_run->repository()
+			&& 'completed' === $workflow_run->action()
+			&& 'success' === $workflow_run->conclusion()
+			&& $this->branch_name === $workflow_run->head_branch()
+			&& $this->workflow_name === $workflow_run->workflow_name();
 	}
 }

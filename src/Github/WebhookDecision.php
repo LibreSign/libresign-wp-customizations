@@ -31,28 +31,28 @@ final class WebhookDecision {
 	 *
 	 * @var string
 	 */
-	private $code = '';
+	private $error_code = '';
 
 	/**
 	 * Error message of a rejection.
 	 *
 	 * @var string
 	 */
-	private $message = '';
+	private $error_message = '';
 
 	/**
 	 * HTTP status of a rejection.
 	 *
 	 * @var int
 	 */
-	private $status = 0;
+	private $http_status = 0;
 
 	/**
 	 * Why the delivery was ignored, and the details worth reporting.
 	 *
 	 * @var array<string, mixed>
 	 */
-	private $data = array();
+	private $response_data = array();
 
 	/**
 	 * Run to deploy from.
@@ -71,16 +71,16 @@ final class WebhookDecision {
 	/**
 	 * The delivery is not one this endpoint answers.
 	 *
-	 * @param string $code    Error code.
-	 * @param string $message Error message.
-	 * @param int    $status  HTTP status.
+	 * @param string $error_code    Error code.
+	 * @param string $error_message Error message.
+	 * @param int    $http_status   HTTP status.
 	 * @return self
 	 */
-	public static function reject( $code, $message, $status ) {
-		$decision          = new self( self::REJECT );
-		$decision->code    = (string) $code;
-		$decision->message = (string) $message;
-		$decision->status  = (int) $status;
+	public static function reject( $error_code, $error_message, $http_status ) {
+		$decision                = new self( self::REJECT );
+		$decision->error_code    = (string) $error_code;
+		$decision->error_message = (string) $error_message;
+		$decision->http_status   = (int) $http_status;
 
 		return $decision;
 	}
@@ -97,13 +97,13 @@ final class WebhookDecision {
 	/**
 	 * A delivery this endpoint accepts but has nothing to do about.
 	 *
-	 * @param string               $reason  Why it was ignored.
-	 * @param array<string, mixed> $details Details worth reporting back.
+	 * @param string               $ignored_reason Why it was ignored.
+	 * @param array<string, mixed> $details        Details worth reporting back.
 	 * @return self
 	 */
-	public static function ignore( $reason, array $details = array() ) {
-		$decision       = new self( self::IGNORE );
-		$decision->data = array_merge( array( 'reason' => (string) $reason ), $details );
+	public static function ignore( $ignored_reason, array $details = array() ) {
+		$decision                = new self( self::IGNORE );
+		$decision->response_data = array_merge( array( 'reason' => (string) $ignored_reason ), $details );
 
 		return $decision;
 	}
@@ -111,12 +111,12 @@ final class WebhookDecision {
 	/**
 	 * The site was just published and the fragments are stale.
 	 *
-	 * @param WorkflowRun $run Run that published the site.
+	 * @param WorkflowRun $workflow_run Run that published the site.
 	 * @return self
 	 */
-	public static function deploy( WorkflowRun $run ) {
+	public static function deploy( WorkflowRun $workflow_run ) {
 		$decision               = new self( self::DEPLOY );
-		$decision->workflow_run = $run;
+		$decision->workflow_run = $workflow_run;
 
 		return $decision;
 	}
@@ -153,28 +153,28 @@ final class WebhookDecision {
 	 * @return string
 	 */
 	public function code() {
-		return $this->code;
+		return $this->error_code;
 	}
 
 	/**
 	 * @return string
 	 */
 	public function message() {
-		return $this->message;
+		return $this->error_message;
 	}
 
 	/**
 	 * @return int
 	 */
 	public function status() {
-		return $this->status;
+		return $this->http_status;
 	}
 
 	/**
 	 * @return array<string, mixed>
 	 */
 	public function data() {
-		return $this->data;
+		return $this->response_data;
 	}
 
 	/**

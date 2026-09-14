@@ -16,7 +16,7 @@ use PHPUnit\Framework\TestCase;
 final class WorkflowRunTest extends TestCase {
 
 	public function test_reads_the_fields_the_deploy_reports() {
-		$run = WorkflowRun::from_payload(
+		$workflow_run = WorkflowRun::from_payload(
 			array(
 				'action'       => 'completed',
 				'repository'   => array( 'full_name' => 'LibreSign/site' ),
@@ -31,27 +31,27 @@ final class WorkflowRunTest extends TestCase {
 			)
 		);
 
-		$this->assertSame( 'LibreSign/site', $run->repository() );
-		$this->assertSame( 'completed', $run->action() );
-		$this->assertSame( 'success', $run->conclusion() );
-		$this->assertSame( 'gh-pages', $run->head_branch() );
-		$this->assertSame( '0f1e2d3', $run->head_sha() );
-		$this->assertSame( 'https://github.com/LibreSign/site/actions/runs/1', $run->html_url() );
-		$this->assertSame( '2026-09-14T12:00:00Z', $run->updated_at() );
-		$this->assertSame( 'pages build and deployment', $run->workflow_name() );
+		$this->assertSame( 'LibreSign/site', $workflow_run->repository() );
+		$this->assertSame( 'completed', $workflow_run->action() );
+		$this->assertSame( 'success', $workflow_run->conclusion() );
+		$this->assertSame( 'gh-pages', $workflow_run->head_branch() );
+		$this->assertSame( '0f1e2d3', $workflow_run->head_sha() );
+		$this->assertSame( 'https://github.com/LibreSign/site/actions/runs/1', $workflow_run->html_url() );
+		$this->assertSame( '2026-09-14T12:00:00Z', $workflow_run->updated_at() );
+		$this->assertSame( 'pages build and deployment', $workflow_run->workflow_name() );
 	}
 
 	public function test_an_empty_payload_answers_every_field_with_an_empty_string() {
-		$run = WorkflowRun::from_payload( array() );
+		$workflow_run = WorkflowRun::from_payload( array() );
 
-		$this->assertSame( '', $run->repository() );
-		$this->assertSame( '', $run->action() );
-		$this->assertSame( '', $run->conclusion() );
-		$this->assertSame( '', $run->head_branch() );
-		$this->assertSame( '', $run->head_sha() );
-		$this->assertSame( '', $run->html_url() );
-		$this->assertSame( '', $run->updated_at() );
-		$this->assertSame( '', $run->workflow_name() );
+		$this->assertSame( '', $workflow_run->repository() );
+		$this->assertSame( '', $workflow_run->action() );
+		$this->assertSame( '', $workflow_run->conclusion() );
+		$this->assertSame( '', $workflow_run->head_branch() );
+		$this->assertSame( '', $workflow_run->head_sha() );
+		$this->assertSame( '', $workflow_run->html_url() );
+		$this->assertSame( '', $workflow_run->updated_at() );
+		$this->assertSame( '', $workflow_run->workflow_name() );
 	}
 
 	/**
