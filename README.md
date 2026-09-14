@@ -13,6 +13,33 @@ Customizations at WordPress relative to website libresign.coop
 - Create the GitHub token and add at configuration page
 - Set the organization and repository that have the deploy action
 
+## Architecture
+
+`src/` holds the decisions and `includes/` plus the main plugin file hold the
+wiring: the hooks, the options and the effects. A decision receives values and
+returns values — the navigation receives the query vars instead of reading
+`global $wp`, the webhook gate receives the headers instead of a
+`WP_REST_Request` — so it is covered by a data provider and no test double.
+
+```
+src/
+├── Account/Navigation.php        # entries, labels and the active one
+├── Account/RootEndpoint.php      # account screens served from the site root
+├── Github/DeployDispatch.php     # when publishing asks GitHub for a deploy
+├── Github/SiteDeploy.php         # which run publishes the site
+├── Github/WebhookDecision.php    # what to answer a delivery
+├── Github/WebhookGate.php        # inspection of a delivery
+├── Github/WebhookRequest.php     # headers and body of a delivery
+├── Github/WebhookSignature.php   # the HMAC GitHub signs with
+├── Github/WorkflowRun.php        # the run a payload describes
+├── Settings/Secret.php           # the cipher of the token and the secret
+└── Subscription/StatusChange.php # changes that ask for a confirmation
+```
+
+The plugin is installed by cloning the repository, so Composer never runs on the
+server: `src/Autoloader.php` maps the namespace to `src/` and is the only file
+the plugin requires by hand.
+
 ## Development
 
 Every check is a Composer script:
@@ -51,13 +78,14 @@ docker exec -w /var/www/html/wp-content/plugins/libresign-wp-customizations \
   wordpress-docker-wordpress-1 composer test
 ```
 
-`tests/` mirrors the plugin file by file, with `Test.php` appended:
-`includes/github-site-webhook.php` is covered by
-`tests/Unit/Includes/GithubSiteWebhookTest.php` and
-`tests/Integration/Includes/GithubSiteWebhookTest.php`. A file belongs to
-`Unit/` when it only feeds values to a function and reads the returned value,
-and to `Integration/` when it goes through WordPress: options, hooks, the REST
-server or the database.
+`tests/Unit/` mirrors `src/` and `tests/Integration/` mirrors the plugin files,
+in both cases file by file with `Test.php` appended:
+`src/Github/WebhookGate.php` is covered by
+`tests/Unit/Github/WebhookGateTest.php`, and the endpoint wiring it serves,
+`includes/github-site-webhook.php`, by
+`tests/Integration/Includes/GithubSiteWebhookTest.php`. A decision is covered by
+a unit test, and the wiring by an integration test going through WordPress:
+options, hooks, the REST server or the database.
 
 Nothing is mocked. Outgoing HTTP is answered through the `pre_http_request`
 filter (`tests/Support/FakeHttp.php`), which is WordPress' own extension point,
