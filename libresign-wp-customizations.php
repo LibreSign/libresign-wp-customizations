@@ -202,7 +202,11 @@ function libresign_show_github_action_status_notice() {
             intval($status['post_id']),
             esc_html($status['language'])
         );
-        echo "<div class='notice $class is-dismissible'>$post_info</div>";
+        printf(
+            '<div class="notice %s is-dismissible">%s</div>',
+            esc_attr($class),
+            wp_kses_post($post_info)
+        );
     }
 }
 add_action('admin_notices', 'libresign_show_github_action_status_notice');
@@ -231,7 +235,7 @@ add_action('admin_menu', function () {
 });
 function libresign_config_page() {
     if (!current_user_can('manage_options')) {
-        wp_die(__('Você não tem permissão para acessar esta página.'));
+        wp_die(esc_html__('Você não tem permissão para acessar esta página.', 'libresign-wp-customizations'));
     }
 
     ?>
@@ -618,7 +622,7 @@ function libresign_is_root_my_account_endpoint_request() {
         return false;
     }
 
-    $request_uri  = isset( $_SERVER['REQUEST_URI'] ) ? (string) wp_unslash( $_SERVER['REQUEST_URI'] ) : '';
+    $request_uri  = isset( $_SERVER['REQUEST_URI'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '';
     $request_path = trim( (string) wp_parse_url( $request_uri, PHP_URL_PATH ), '/' );
 
     if ( '' === $request_path ) {
@@ -715,10 +719,12 @@ function libresign_render_nextcloud_account_button() {
         esc_html__( 'Use as mesmas credenciais do WordPress para acessar o sistema de assinaturas.', 'libresign-wp-customizations' ),
         esc_url( $nextcloud_host ),
         esc_html__( 'Ir para o sistema de assinaturas', 'libresign-wp-customizations' ),
-        sprintf(
-            /* translators: %s: link to the FAQ page */
-            esc_html__( 'Se precisar de ajuda, veja nosso %s.', 'libresign-wp-customizations' ),
-            $faq_link
+        wp_kses_post(
+            sprintf(
+                /* translators: %s: link to the FAQ page */
+                esc_html__( 'Se precisar de ajuda, veja nosso %s.', 'libresign-wp-customizations' ),
+                $faq_link
+            )
         )
     );
 }
@@ -785,7 +791,7 @@ function libresign_intercept_subscription_status_change() {
         return;
     }
 
-    $subscription = libresign_get_subscription_for_status_change( $_GET['subscription_id'], $new_status );
+    $subscription = libresign_get_subscription_for_status_change( absint( wp_unslash( $_GET['subscription_id'] ) ), $new_status );
     $nonce        = wc_clean( wp_unslash( $_GET['_wpnonce'] ) );
 
     if ( ! $subscription
@@ -829,7 +835,7 @@ function libresign_render_subscription_change_confirmation() {
         return;
     }
 
-    $subscription = libresign_get_subscription_for_status_change( $_GET['libresign_confirm_subscription'], $new_status );
+    $subscription = libresign_get_subscription_for_status_change( absint( wp_unslash( $_GET['libresign_confirm_subscription'] ) ), $new_status );
     $nonce        = wc_clean( wp_unslash( $_GET['_wpnonce'] ) );
 
     if ( ! $subscription
