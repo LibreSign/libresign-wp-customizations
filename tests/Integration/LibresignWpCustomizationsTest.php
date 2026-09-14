@@ -8,6 +8,7 @@
 namespace LibreSign\WPCustomizations\Tests\Integration;
 
 use LibreSign\WPCustomizations\Tests\Support\FakeHttp;
+use LibreSign\WPCustomizations\Tests\Support\PluginSecret;
 use LibreSign\WPCustomizations\Tests\Support\RegistersPluginSettings;
 use WP_Error;
 use WP_REST_Request;
@@ -35,7 +36,18 @@ final class LibresignWpCustomizationsTest extends WP_UnitTestCase {
 
 		$this->github = new FakeHttp();
 
+		global $wp_rest_server;
+		$wp_rest_server = new WP_REST_Server();
+		do_action( 'rest_api_init', $wp_rest_server );
+
 		update_option( 'libresign_github_deploy_organization_repository', 'LibreSign/site' );
+	}
+
+	public function tear_down() {
+		global $wp_rest_server;
+		$wp_rest_server = null;
+
+		parent::tear_down();
 	}
 
 	/**
@@ -50,21 +62,16 @@ final class LibresignWpCustomizationsTest extends WP_UnitTestCase {
 	}
 
 	public function test_the_version_route_answers_with_the_wordpress_version() {
-		global $wp_rest_server, $wp_version;
-
-		$wp_rest_server = new WP_REST_Server();
-		do_action( 'rest_api_init', $wp_rest_server );
+		global $wp_version;
 
 		$response = rest_get_server()->dispatch( new WP_REST_Request( 'GET', '/libresign/v1/version' ) );
 
 		$this->assertSame( 200, $response->get_status() );
 		$this->assertSame( array( 'version' => $wp_version ), $response->get_data() );
-
-		$wp_rest_server = null;
 	}
 
 	public function test_publishing_a_post_dispatches_the_site_deploy() {
-		update_option( 'libresign_github_deploy_token', $this->encrypt( 'deploy-token' ) );
+		update_option( 'libresign_github_deploy_token', PluginSecret::encrypt( 'deploy-token' ) );
 		$this->github->answer_with( FakeHttp::response( 204 ) );
 
 		$post_id = self::factory()->post->create( array( 'post_status' => 'publish' ) );
@@ -177,8 +184,11 @@ final class LibresignWpCustomizationsTest extends WP_UnitTestCase {
 	 * Current behaviour, and a bug: update_option() sanitizes the value and,
 	 * when the option does not exist yet, hands it to add_option(), which
 	 * sanitizes it again. The token is therefore encrypted twice on the very
-	 * first save and the dispatch goes out with a token GitHub cannot read,
-	 * until it is saved a second time.
+	 * first save, so the dispatch goes out carrying the encrypted token, which
+	 * GitHub cannot read, until it is saved a second time.
+	 *
+	 * Fixing the double sanitizing turns this test red: replace it with the
+	 * round trip of the test above, which is what the behaviour becomes.
 	 */
 	public function test_a_token_saved_for_the_first_time_is_encrypted_twice() {
 		delete_option( 'libresign_github_deploy_token' );
@@ -189,7 +199,10 @@ final class LibresignWpCustomizationsTest extends WP_UnitTestCase {
 		$this->github->answer_with( FakeHttp::response( 204 ) );
 		self::factory()->post->create( array( 'post_status' => 'publish' ) );
 
-		$this->assertNotSame( 'Bearer a-personal-access-token', $this->github->args()['headers']['Authorization'] );
+		$this->assertSame(
+			'Bearer ' . PluginSecret::encrypt( 'a-personal-access-token' ),
+			$this->github->args()['headers']['Authorization']
+		);
 	}
 
 	public function test_saving_an_empty_deploy_token_keeps_the_previous_one() {
@@ -343,24 +356,6 @@ final class LibresignWpCustomizationsTest extends WP_UnitTestCase {
 				'gravatar_hash' => md5( 'ana@example.org' ),
 			),
 			$filtered->get_data()['author']
-		);
-	}
-
-	/**
-	 * Encrypt a value the way the settings screen stores it.
-	 *
-	 * @param string $value Plain text value.
-	 * @return string
-	 */
-	private function encrypt( $value ) {
-		return base64_encode(
-			openssl_encrypt(
-				$value,
-				'AES-256-CBC',
-				hash( 'sha256', AUTH_KEY . SECURE_AUTH_SALT ),
-				0,
-				substr( hash( 'sha256', NONCE_SALT ), 0, 16 )
-			)
 		);
 	}
 }

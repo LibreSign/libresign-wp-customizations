@@ -8,6 +8,16 @@
  * @package LibreSign_WP_Customizations
  */
 
+/*
+ * The plugin is deployed by cloning the repository, so this directory is served
+ * by the web server. Running the WordPress test bootstrap over HTTP installs
+ * the test suite, which drops every table of the test database, so nothing here
+ * runs outside the command line.
+ */
+if ( 'cli' !== PHP_SAPI && 'phpdbg' !== PHP_SAPI ) {
+	exit;
+}
+
 /**
  * Read an environment variable, falling back to a default.
  *
