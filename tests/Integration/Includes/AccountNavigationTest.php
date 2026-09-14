@@ -10,7 +10,9 @@ namespace LibreSign\WPCustomizations\Tests\Integration\Includes;
 use WP_UnitTestCase;
 
 /**
- * Covers the parts that read the request being rendered or hook into WooCommerce.
+ * Covers the wiring: the hooks registered and the query vars handed over to
+ * LibreSign\WPCustomizations\Account\Navigation, which decides on its own what
+ * the navigation looks like.
  *
  * WooCommerce is not loaded in the test suite, so what is asserted here is the
  * registration of the hooks and the behaviour of the callbacks when they are
@@ -95,86 +97,34 @@ final class AccountNavigationTest extends WP_UnitTestCase {
 		$this->assertSame( 20, has_filter( 'woocommerce_endpoint_view-order_title', 'libresign_filter_view_order_endpoint_title' ) );
 	}
 
-	public function test_the_endpoint_title_follows_the_navigation_label() {
-		$this->render_request_with( array( 'orders' => '' ) );
-
-		$this->assertSame( 'Invoices', libresign_filter_account_endpoint_title( 'Orders', 'orders' ) );
-	}
-
-	public function test_the_endpoint_title_of_a_paginated_screen_carries_the_page_number() {
+	public function test_the_endpoint_title_is_built_from_the_request_being_rendered() {
 		$this->render_request_with( array( 'orders' => '3' ) );
 
 		$this->assertSame( 'Invoices (page 3)', libresign_filter_account_endpoint_title( 'Orders', 'orders' ) );
 	}
 
-	public function test_the_first_page_is_not_numbered() {
-		$this->render_request_with( array( 'orders' => '1' ) );
-
-		$this->assertSame( 'Invoices', libresign_filter_account_endpoint_title( 'Orders', 'orders' ) );
-	}
-
-	public function test_an_entry_that_was_not_renamed_keeps_the_woocommerce_title() {
-		$this->render_request_with( array( 'edit-account' => '' ) );
-
-		$this->assertSame( 'Account details', libresign_filter_account_endpoint_title( 'Account details', 'edit-account' ) );
-	}
-
-	/**
-	 * @dataProvider provide_detail_screens
-	 *
-	 * @param array<string, mixed> $query_vars Query vars of the request being rendered.
-	 * @param string               $endpoint   Navigation entry being rendered.
-	 * @param string[]             $classes    Classes WooCommerce computed.
-	 * @param bool                 $active     Whether the entry ends up highlighted.
-	 */
-	public function test_a_detail_screen_highlights_the_entry_it_belongs_to( $query_vars, $endpoint, $classes, $active ) {
-		$this->render_request_with( $query_vars );
-
-		$filtered = libresign_filter_account_menu_item_classes( $classes, $endpoint );
-
-		$this->assertSame( $active, in_array( 'is-active', $filtered, true ) );
-	}
-
-	/**
-	 * @return iterable<string, array{0: array<string, mixed>, 1: string, 2: string[], 3: bool}>
-	 */
-	public static function provide_detail_screens() {
-		yield 'changing the payment method of a subscription' => array(
-			array( 'subscription-payment-method' => '12' ),
-			'subscriptions',
-			array( 'subscriptions' ),
-			true,
-		);
-		yield 'editing an address' => array(
-			array( 'edit-address' => 'billing' ),
-			'payment-methods',
-			array( 'payment-methods' ),
-			true,
-		);
-		yield 'an entry without detail screens' => array(
-			array( 'edit-address' => 'billing' ),
-			'orders',
-			array( 'orders' ),
-			false,
-		);
-		yield 'an entry whose detail screen is not being rendered' => array(
-			array( 'orders' => '' ),
-			'payment-methods',
-			array( 'payment-methods' ),
-			false,
-		);
-		yield 'an entry WooCommerce already highlighted' => array(
-			array(),
-			'orders',
-			array( 'orders', 'is-active' ),
-			true,
-		);
-	}
-
-	public function test_the_classes_of_an_unrelated_entry_are_untouched() {
+	public function test_the_highlighted_entry_is_built_from_the_request_being_rendered() {
 		$this->render_request_with( array( 'edit-address' => 'billing' ) );
 
-		$this->assertSame( array( 'orders' ), libresign_filter_account_menu_item_classes( array( 'orders' ), 'orders' ) );
+		$this->assertContains(
+			'is-active',
+			libresign_filter_account_menu_item_classes( array( 'payment-methods' ), 'payment-methods' )
+		);
+	}
+
+	public function test_the_navigation_is_reordered_when_woocommerce_filters_it() {
+		$this->assertSame(
+			array( 'orders', 'customer-logout' ),
+			array_keys(
+				libresign_filter_account_menu_items(
+					array(
+						'dashboard'       => 'Dashboard',
+						'orders'          => 'Orders',
+						'customer-logout' => 'Log out',
+					)
+				)
+			)
+		);
 	}
 
 	public function test_the_addresses_are_described_in_terms_of_the_subscription() {

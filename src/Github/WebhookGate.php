@@ -1,0 +1,108 @@
+<?php
+/**
+ * Inspection of a webhook delivery.
+ *
+ * @package LibreSign_WP_Customizations
+ */
+
+namespace LibreSign\WPCustomizations\Github;
+
+defined( 'ABSPATH' ) || exit;
+
+/**
+ * Turns a delivery into the decision the endpoint acts on.
+ *
+ * Everything the endpoint refuses is refused here, so the endpoint itself only
+ * has to turn a decision into a response.
+ */
+final class WebhookGate {
+
+	/**
+	 * Secret shared with the repository webhook.
+	 *
+	 * @var string
+	 */
+	private $secret;
+
+	/**
+	 * The run that publishes the site.
+	 *
+	 * @var SiteDeploy
+	 */
+	private $site_deploy;
+
+	/**
+	 * @param string     $secret      Secret shared with the repository webhook.
+	 * @param SiteDeploy $site_deploy The run that publishes the site.
+	 */
+	public function __construct( $secret, SiteDeploy $site_deploy ) {
+		$this->secret      = (string) $secret;
+		$this->site_deploy = $site_deploy;
+	}
+
+	/**
+	 * What to do with a delivery.
+	 *
+	 * @param WebhookRequest $request Delivery received.
+	 * @return WebhookDecision
+	 */
+	public function decide( WebhookRequest $request ) {
+		if ( '' === trim( $this->secret ) ) {
+			return WebhookDecision::reject(
+				'libresign_github_webhook_secret_missing',
+				__( 'The GitHub webhook secret is not configured.', 'libresign-wp-customizations' ),
+				503
+			);
+		}
+
+		if ( ! $request->is_from_github() ) {
+			return WebhookDecision::reject(
+				'libresign_github_webhook_invalid_agent',
+				__( 'The webhook request does not look like a GitHub delivery.', 'libresign-wp-customizations' ),
+				403
+			);
+		}
+
+		if ( ! $request->has_valid_signature( $this->secret ) ) {
+			return WebhookDecision::reject(
+				'libresign_github_webhook_invalid_signature',
+				__( 'Invalid GitHub webhook signature.', 'libresign-wp-customizations' ),
+				403
+			);
+		}
+
+		if ( 'ping' === $request->event() ) {
+			return WebhookDecision::pong();
+		}
+
+		if ( 'workflow_run' !== $request->event() ) {
+			return WebhookDecision::ignore( 'unsupported_event', array( 'event' => $request->event() ) );
+		}
+
+		$payload = $request->payload();
+
+		if ( null === $payload ) {
+			return WebhookDecision::reject(
+				'libresign_github_webhook_invalid_payload',
+				__( 'The GitHub webhook payload must be valid JSON.', 'libresign-wp-customizations' ),
+				400
+			);
+		}
+
+		$run = WorkflowRun::from_payload( $payload );
+
+		if ( ! $this->site_deploy->is_production_run( $run ) ) {
+			return WebhookDecision::ignore(
+				'not_production_deploy',
+				array(
+					'repository'    => $run->repository(),
+					'workflow_name' => $run->workflow_name(),
+					'head_branch'   => $run->head_branch(),
+					'conclusion'    => $run->conclusion(),
+				)
+			);
+		}
+
+		return WebhookDecision::deploy( $run );
+	}
+}
