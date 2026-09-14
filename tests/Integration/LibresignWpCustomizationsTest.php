@@ -324,6 +324,18 @@ final class LibresignWpCustomizationsTest extends WP_UnitTestCase {
 		$this->assertSame( LIBRESIGN_WP_REWRITE_VERSION, get_option( 'libresign_root_my_account_rewrite_version' ) );
 	}
 
+	public function test_the_settings_link_comes_first_on_the_plugins_screen() {
+		$links = libresign_add_settings_link( array( '<a href="#">Deactivate</a>' ) );
+
+		$this->assertCount( 2, $links );
+		$this->assertStringContainsString( 'options-general.php?page=libresign-config', $links[0] );
+		$this->assertSame( '<a href="#">Deactivate</a>', $links[1] );
+	}
+
+	public function test_the_settings_are_registered_on_admin_init() {
+		$this->assertSame( 10, has_action( 'admin_init', 'libresign_register_settings' ) );
+	}
+
 	public function test_the_post_author_is_exposed_with_a_gravatar_hash() {
 		$user_id = (int) self::factory()->user->create(
 			array(

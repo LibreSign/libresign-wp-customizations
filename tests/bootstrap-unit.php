@@ -43,6 +43,16 @@ function plugin_basename( $file ) {
 }
 
 /**
+ * JSON encoding, which WordPress only wraps to pick its own default flags.
+ *
+ * @param mixed $data Value to encode.
+ * @return string|false
+ */
+function wp_json_encode( $data ) {
+	return json_encode( $data );
+}
+
+/**
  * Translation, which without a text domain loaded returns the original string.
  *
  * @param string $text Text to translate.

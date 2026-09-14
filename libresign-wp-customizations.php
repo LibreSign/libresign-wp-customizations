@@ -23,10 +23,27 @@
  * GitHub Plugin URI: https://github.com/LibreSign/libresign-wp-customizations
  */
 
+use LibreSign\WPCustomizations\Account\RootEndpoint;
+use LibreSign\WPCustomizations\Autoloader;
+use LibreSign\WPCustomizations\Github\DeployDispatch;
+use LibreSign\WPCustomizations\Settings\Secret;
+use LibreSign\WPCustomizations\Subscription\StatusChange;
+
 defined( 'ABSPATH' ) || exit;
+
+require_once __DIR__ . '/src/Autoloader.php';
+
+Autoloader::register();
 
 const LIBRESIGN_WP_REWRITE_VERSION = '9';
 const LIBRESIGN_FAQ_URL = 'https://libresign.coop/faq/';
+
+/**
+ * The cipher protecting the settings stored encrypted.
+ */
+function libresign_plugin_secret() {
+    return Secret::from_salts( AUTH_KEY, SECURE_AUTH_SALT, NONCE_SALT );
+}
 
 /**
  * Get the WooCommerce My Account page ID.
@@ -124,59 +141,58 @@ add_action('wp_head', 'libresign_wp_add_noindex_meta_tag');
  * Deploy the site after change the status of post
  */
 function libresign_trigger_github_action_on_publish($new_status, $old_status, $post) {
-    if ($post->post_type === 'post' && ($new_status === 'publish' || $old_status === 'publish')) {
-        $encripted = get_option('libresign_github_deploy_token');
-        $key = hash('sha256', AUTH_KEY . SECURE_AUTH_SALT);
-        $iv = substr(hash('sha256', NONCE_SALT), 0, 16);
-        $deploy_token = openssl_decrypt(base64_decode($encripted), 'AES-256-CBC', $key, 0, $iv);
-        $organizationRepository = get_option('libresign_github_deploy_organization_repository');
-        $response = wp_remote_post('https://api.github.com/repos/' . $organizationRepository . '/dispatches', [
-            'body'        => json_encode([
-                'event_type' => 'deploy-site',
-            ]),
-            'headers'     => [
-                'Authorization' => 'Bearer ' . $deploy_token,
-                'Accept'        => 'application/vnd.github+json',
-                'User-Agent'    => 'WordPress Hook',
-            ],
-            'timeout'     => 15,
+    if (!DeployDispatch::triggers_deploy($new_status, $old_status, $post->post_type)) {
+        return;
+    }
+
+    $deploy_token = libresign_plugin_secret()->decrypt(get_option('libresign_github_deploy_token'));
+    $organizationRepository = get_option('libresign_github_deploy_organization_repository');
+    $response = wp_remote_post('https://api.github.com/repos/' . $organizationRepository . '/dispatches', [
+        'body'        => wp_json_encode([
+            'event_type' => 'deploy-site',
+        ]),
+        'headers'     => [
+            'Authorization' => 'Bearer ' . $deploy_token,
+            'Accept'        => 'application/vnd.github+json',
+            'User-Agent'    => 'WordPress Hook',
+        ],
+        'timeout'     => 15,
+    ]);
+
+    $post_data = [
+        'post_id'    => $post->ID,
+        'post_title' => get_the_title($post->ID),
+        'language'   => function_exists('pll_get_post_language') ? pll_get_post_language($post->ID) : 'indefinido',
+    ];
+
+    if (is_wp_error($response)) {
+        $post_data = array_merge($post_data, [
+            'type'    => 'error',
+            'message' => $response->get_error_message(),
         ]);
-
-        $post_data = [
-            'post_id'    => $post->ID,
-            'post_title' => get_the_title($post->ID),
-            'language'   => function_exists('pll_get_post_language') ? pll_get_post_language($post->ID) : 'indefinido',
-        ];
-
-        if (is_wp_error($response)) {
+    } else {
+        $code = (int) wp_remote_retrieve_response_code($response);
+        if ($code === 204) {
             $post_data = array_merge($post_data, [
-                'type'    => 'error',
-                'message' => $response->get_error_message(),
+                'type'    => 'success',
+                'message' => DeployDispatch::success_message($organizationRepository),
             ]);
         } else {
-            $code = wp_remote_retrieve_response_code($response);
-            if ($code === 204) {
-                $post_data = array_merge($post_data, [
-                    'type'    => 'success',
-                    'message' => 'Ação de deploy enviada com sucesso. Acompanhe <a href="https://github.com/' . $organizationRepository.'/actions" target="_blank">aqui</a>',
-                ]);
-            } else {
-                $body = json_decode($response['body'], true);
-                $post_data = array_merge($post_data, [
-                    'type'    => 'error',
-                    'message' => "Erro ao acionar deploy.<br />Código: <strong>$code</strong>.<br />Message: <strong>{$body['message']}</strong>",
-                ]);
-            }
+            $body = json_decode(wp_remote_retrieve_body($response), true);
+            $post_data = array_merge($post_data, [
+                'type'    => 'error',
+                'message' => DeployDispatch::failure_message($code, isset($body['message']) ? $body['message'] : ''),
+            ]);
         }
-
-        $transient_key = 'libresign_github_action_status_' . get_current_user_id();
-        $status_list = get_transient($transient_key);
-        if (!is_array($status_list)) {
-            $status_list = [];
-        }
-        $status_list[] = $post_data;
-        set_transient($transient_key, $status_list, 60);
     }
+
+    $transient_key = 'libresign_github_action_status_' . get_current_user_id();
+    $status_list = get_transient($transient_key);
+    if (!is_array($status_list)) {
+        $status_list = [];
+    }
+    $status_list[] = $post_data;
+    set_transient($transient_key, $status_list, 60);
 }
 add_action('transition_post_status', 'libresign_trigger_github_action_on_publish', 10, 3);
 
@@ -384,14 +400,29 @@ function libresign_config_page() {
 }
 
 /**
- * Encode the deploy token at database
+ * Encrypt a setting before it is stored, keeping the stored one when nothing was typed.
+ *
+ * The field is rendered empty on every visit, so an empty submission means the
+ * value was left alone.
  */
-add_action('admin_init', function () {
+function libresign_encrypt_setting($value, $option) {
+    $value = trim((string) $value);
+
+    if (empty($value)) {
+        return get_option($option);
+    }
+
+    return libresign_plugin_secret()->encrypt($value);
+}
+
+/**
+ * Register the settings of the configuration page.
+ */
+function libresign_register_settings() {
     register_setting('libresign_settings_group', 'libresign_github_deploy_token', [
         'type' => 'string',
         'sanitize_callback' => function ($value) {
-            $encrypted = libresign_encrypt_plugin_secret($value);
-            return '' === $encrypted ? get_option('libresign_github_deploy_token') : $encrypted;
+            return libresign_encrypt_setting($value, 'libresign_github_deploy_token');
         },
     ]);
     register_setting('libresign_settings_group', 'libresign_github_deploy_organization_repository', [
@@ -401,8 +432,7 @@ add_action('admin_init', function () {
     register_setting('libresign_settings_group', 'libresign_github_webhook_secret', [
         'type' => 'string',
         'sanitize_callback' => function ($value) {
-            $encrypted = libresign_encrypt_plugin_secret($value);
-            return '' === $encrypted ? get_option('libresign_github_webhook_secret') : $encrypted;
+            return libresign_encrypt_setting($value, 'libresign_github_webhook_secret');
         },
     ]);
     register_setting('libresign_settings_group', 'libresign_site_origin', [
@@ -426,7 +456,8 @@ add_action('admin_init', function () {
             return '' === $value ? 'gh-pages' : $value;
         },
     ]);
-});
+}
+add_action('admin_init', 'libresign_register_settings');
 
 /**
  * Register WooCommerce account endpoints at the site root when the account page is the front page.
@@ -616,28 +647,12 @@ function libresign_is_root_my_account_endpoint_request() {
         return false;
     }
 
-    $request_uri  = isset( $_SERVER['REQUEST_URI'] ) ? sanitize_url( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '';
-    $request_path = trim( (string) wp_parse_url( $request_uri, PHP_URL_PATH ), '/' );
+    $request_uri = isset( $_SERVER['REQUEST_URI'] ) ? sanitize_url( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '';
 
-    if ( '' === $request_path ) {
-        return false;
-    }
-
-    $segments   = explode( '/', $request_path );
-    $first_slug = reset( $segments );
-    $query_vars = WC()->query->get_query_vars();
-
-    if ( 'my-account' === $first_slug ) {
-        return true;
-    }
-
-    foreach ( $query_vars as $query_var ) {
-        if ( ! empty( $query_var ) && $query_var === $first_slug ) {
-            return true;
-        }
-    }
-
-    return false;
+    return RootEndpoint::matches(
+        (string) wp_parse_url( $request_uri, PHP_URL_PATH ),
+        WC()->query->get_query_vars()
+    );
 }
 
 /**
@@ -725,26 +740,6 @@ function libresign_render_nextcloud_account_button() {
 add_action( 'woocommerce_before_account_navigation', 'libresign_render_nextcloud_account_button', 20 );
 
 /**
- * Confirmation strings for each subscription status change that requires an extra step.
- */
-function libresign_get_subscription_confirmation_strings( $new_status ) {
-    $strings = array(
-        'cancelled' => array(
-            'question' => __( 'Are you sure you want to cancel your subscription? This action cannot be undone.', 'libresign-wp-customizations' ),
-            'confirm'  => __( 'Yes, cancel subscription', 'libresign-wp-customizations' ),
-            'dismiss'  => __( 'No, keep subscription', 'libresign-wp-customizations' ),
-        ),
-        'active' => array(
-            'question' => __( 'Are you sure you want to reactivate your subscription?', 'libresign-wp-customizations' ),
-            'confirm'  => __( 'Yes, reactivate subscription', 'libresign-wp-customizations' ),
-            'dismiss'  => __( 'No, go back', 'libresign-wp-customizations' ),
-        ),
-    );
-
-    return $strings[ $new_status ] ?? null;
-}
-
-/**
  * Resolve a subscription the current user is allowed to update to the given status, or null.
  */
 function libresign_get_subscription_for_status_change( $subscription_id, $new_status ) {
@@ -781,7 +776,7 @@ function libresign_intercept_subscription_status_change() {
 
     $new_status = sanitize_text_field( wp_unslash( $_GET['change_subscription_to'] ) );
 
-    if ( ! libresign_get_subscription_confirmation_strings( $new_status ) ) {
+    if ( ! StatusChange::confirmation_strings( $new_status ) ) {
         return;
     }
 
@@ -823,7 +818,7 @@ function libresign_render_subscription_change_confirmation() {
     }
 
     $new_status = sanitize_text_field( wp_unslash( $_GET['libresign_confirm_change'] ) );
-    $strings    = libresign_get_subscription_confirmation_strings( $new_status );
+    $strings    = StatusChange::confirmation_strings( $new_status );
 
     if ( ! $strings ) {
         return;

@@ -8,6 +8,7 @@ parameters:
     paths:
         - libresign-wp-customizations.php
         - includes
+        - src
         - tests
     excludePaths:
         analyseAndScan:
