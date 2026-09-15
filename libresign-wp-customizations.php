@@ -39,7 +39,7 @@ const LIBRESIGN_WP_REWRITE_VERSION = '9';
 const LIBRESIGN_FAQ_URL = 'https://libresign.coop/faq/';
 
 /**
- * The cipher protecting the settings stored encrypted.
+ * Cipher of the settings stored encrypted.
  */
 function libresign_plugin_secret() {
     return Secret::from_salts( AUTH_KEY, SECURE_AUTH_SALT, NONCE_SALT );
@@ -145,7 +145,7 @@ function libresign_trigger_github_action_on_publish($new_status, $old_status, $p
         return;
     }
 
-    $deploy_token = libresign_plugin_secret()->decrypt(get_option('libresign_github_deploy_token'));
+    $deploy_token = libresign_plugin_secret()->decrypt_or_discard(get_option('libresign_github_deploy_token'));
     $organizationRepository = get_option('libresign_github_deploy_organization_repository');
     $response = wp_remote_post('https://api.github.com/repos/' . $organizationRepository . '/dispatches', [
         'body'        => wp_json_encode([
@@ -403,10 +403,10 @@ function libresign_config_page() {
 }
 
 /**
- * Encrypt a setting before it is stored, keeping the stored one when nothing was typed.
+ * Encrypt a setting before it is stored.
  *
- * The field is rendered empty on every visit, so an empty submission means the
- * value was left alone.
+ * The field is rendered empty on every visit, so a submission with nothing in
+ * it means the value was left alone and the stored one is kept.
  */
 function libresign_encrypt_setting($value, $option) {
     $value = trim((string) $value);

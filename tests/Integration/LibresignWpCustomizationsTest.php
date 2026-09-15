@@ -205,6 +205,15 @@ final class LibresignWpCustomizationsTest extends WP_UnitTestCase {
 		);
 	}
 
+	public function test_a_deploy_token_that_cannot_be_decrypted_is_not_sent_to_github() {
+		update_option( 'libresign_github_deploy_token', PluginSecret::encrypt_with_other_salts( 'a-personal-access-token' ) );
+		$this->github->answer_with( FakeHttp::response( 204 ) );
+
+		self::factory()->post->create( array( 'post_status' => 'publish' ) );
+
+		$this->assertSame( 'Bearer ', $this->github->args()['headers']['Authorization'] );
+	}
+
 	public function test_saving_an_empty_deploy_token_keeps_the_previous_one() {
 		update_option( 'libresign_github_deploy_token', 'placeholder' );
 		$this->register_plugin_settings();

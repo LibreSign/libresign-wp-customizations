@@ -16,8 +16,6 @@ use PHPUnit\Framework\TestCase;
 final class SecretTest extends TestCase {
 
 	/**
-	 * A cipher with fixed salts, so the expectations do not depend on the installation.
-	 *
 	 * @return Secret
 	 */
 	private static function secret() {
@@ -44,6 +42,45 @@ final class SecretTest extends TestCase {
 		yield 'punctuation'             => array( '{"not":"json"} + / = %' );
 		yield 'accents'                 => array( 'segredo com acentuação' );
 		yield 'a single character'      => array( 'x' );
+	}
+
+	/**
+	 * @dataProvider provide_values
+	 *
+	 * @param string $value Value to store.
+	 */
+	public function test_a_stored_value_is_read_back_for_sending( $value ) {
+		$secret = self::secret();
+
+		$this->assertSame( $value, $secret->decrypt_or_discard( $secret->encrypt( $value ) ) );
+	}
+
+	public function test_a_value_encrypted_elsewhere_is_discarded_instead_of_sent() {
+		$stored_value = Secret::from_salts( 'another-auth-key', 'another-secure-auth-salt', 'another-nonce-salt' )
+			->encrypt( 'ghp_0123456789abcdefghijklmnopqrstuvwxyz' );
+
+		$this->assertSame( $stored_value, self::secret()->decrypt( $stored_value ) );
+		$this->assertSame( '', self::secret()->decrypt_or_discard( $stored_value ) );
+	}
+
+	/**
+	 * @dataProvider provide_plain_tokens
+	 *
+	 * @param string $stored_value Value found in the database.
+	 */
+	public function test_a_token_saved_by_hand_is_still_sent( $stored_value ) {
+		$this->assertSame( $stored_value, self::secret()->decrypt_or_discard( $stored_value ) );
+	}
+
+	/**
+	 * A GitHub token carries an underscore, which base64 does not.
+	 *
+	 * @return iterable<string, array{0: string}>
+	 */
+	public static function provide_plain_tokens() {
+		yield 'a classic personal access token' => array( 'ghp_0123456789abcdefghijklmnopqrstuvwxyz' );
+		yield 'a fine grained token'            => array( 'github_pat_11ABCDEFG0abcdefghijklmn' );
+		yield 'nothing saved yet'               => array( '' );
 	}
 
 	public function test_the_stored_value_is_not_the_value() {
