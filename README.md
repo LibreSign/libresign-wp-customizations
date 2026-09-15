@@ -104,7 +104,7 @@ reach without WooCommerce, the rewrite rules and a browser — the account
 navigation, the account screens served from the site root and the confirmation
 of a subscription status change.
 
-The suite runs against a WordPress that is already up, described by three
+The suite runs against a WordPress that is already up, described by four
 variables:
 
 | Variable | Default |
@@ -112,6 +112,7 @@ variables:
 | `WP_BASE_URL` | `http://localhost` |
 | `WP_CLI` | `docker exec -i -u www-data wordpress-docker-wordpress-1 wp --path=/var/www/html` |
 | `WP_E2E_CUSTOMER_PASSWORD` | `libresign-e2e` |
+| `WP_E2E_ALLOW_ANY_SITE` | unset |
 
 The defaults are the local SaaS stack again, so there it takes no arguments:
 
@@ -121,10 +122,13 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-`tests/E2E/support/seed.php` puts the site in the state the specs expect — My
-Account as the front page, a customer with that password and an active
-subscription — and runs again before each test that changes it, so a failed run
-leaves nothing behind.
+`tests/E2E/support/seed.php` puts the site in the state the specs expect, and
+runs again before each test that changes the subscription. It is destructive and
+nothing is restored afterwards: it makes My Account the front page, rebuilds the
+rewrite rules, and creates `libresign_e2e_customer` with the password above,
+which this repository publishes. That is why it refuses to run against anything
+but `localhost` unless `WP_E2E_ALLOW_ANY_SITE=1` says so — point it at a site you
+can throw away, never at production or staging.
 
 Anywhere else, point the first two at the site under test. `.wp-env.json`
 describes a disposable one, which is what CI runs:

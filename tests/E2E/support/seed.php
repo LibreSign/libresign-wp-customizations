@@ -12,6 +12,19 @@ if ( ! function_exists( 'wcs_create_subscription' ) ) {
 	WP_CLI::error( 'WooCommerce Subscriptions is not active on the site under test.' );
 }
 
+$site_host        = (string) wp_parse_url( (string) home_url(), PHP_URL_HOST );
+$site_is_local    = in_array( $site_host, array( 'localhost', '127.0.0.1', '::1' ), true );
+$any_site_allowed = isset( $args[1] ) && 'any-site' === $args[1];
+
+if ( ! $site_is_local && ! $any_site_allowed ) {
+	WP_CLI::error(
+		sprintf(
+			'The seed makes My Account the front page of %s, rebuilds its rewrite rules and creates a customer with a password this repository publishes. Set WP_E2E_ALLOW_ANY_SITE=1 to run it outside localhost.',
+			$site_host
+		)
+	);
+}
+
 $customer_login = 'libresign_e2e_customer';
 $customer_email = 'e2e-customer@libresign.test';
 $product_sku    = 'LIBRESIGN-E2E-PLAN';
