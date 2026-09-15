@@ -12,6 +12,9 @@ export const CUSTOMER_STATE = join( STATE_DIR, 'customer.json' );
 export const CUSTOMER_PASSWORD =
 	process.env.WP_E2E_CUSTOMER_PASSWORD ?? 'libresign-e2e';
 
+const SEED_TARGET =
+	process.env.WP_E2E_ALLOW_ANY_SITE === '1' ? 'any-site' : 'local-site-only';
+
 export interface SeededSite {
 	customerId: number;
 	customerLogin: string;
@@ -24,7 +27,7 @@ export interface SeededSite {
 
 export function seedSite(): SeededSite {
 	const output = runWpCli(
-		[ 'eval-file', '-', CUSTOMER_PASSWORD ],
+		[ 'eval-file', '-', CUSTOMER_PASSWORD, SEED_TARGET ],
 		readFileSync( SEED_SCRIPT, 'utf8' )
 	);
 
