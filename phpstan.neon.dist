@@ -12,7 +12,7 @@ parameters:
         - tests
     excludePaths:
         analyse:
-            - tests/E2E/support/*.php
+            - tests/E2E/support
         analyseAndScan:
             # Answers the WordPress functions the plugin reaches while it loads,
             # so the unit suite runs without WordPress. Analysing it would take
