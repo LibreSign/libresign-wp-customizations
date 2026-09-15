@@ -10,7 +10,7 @@ const SITE_STATE = join( STATE_DIR, 'site.json' );
 export const CUSTOMER_STATE = join( STATE_DIR, 'customer.json' );
 
 export const CUSTOMER_PASSWORD =
-	process.env.WP_E2E_CUSTOMER_PASSWORD ?? 'libresign-e2e';
+	process.env.WP_E2E_CUSTOMER_PASSWORD || 'libresign-e2e';
 
 const SEED_TARGET =
 	process.env.WP_E2E_ALLOW_ANY_SITE === '1' ? 'any-site' : 'local-site-only';
