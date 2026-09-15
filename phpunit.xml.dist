@@ -20,6 +20,7 @@
         <include>
             <file>libresign-wp-customizations.php</file>
             <directory suffix=".php">includes</directory>
+            <directory suffix=".php">src</directory>
         </include>
     </coverage>
 </phpunit>
