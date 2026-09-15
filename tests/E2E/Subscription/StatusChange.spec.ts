@@ -5,8 +5,7 @@ import { SeededSite, seedSite, subscriptionStatus } from '../support/site';
 const CANCELLATION_QUESTION =
 	'Are you sure you want to cancel your subscription? This action cannot be undone.';
 
-const cancelAction = ( page: Page ) =>
-	page.getByRole( 'button', { name: 'Cancel', exact: true } );
+const cancelAction = ( page: Page ) => page.locator( 'a.cancel' );
 
 test.describe( 'Confirming a subscription status change', () => {
 	let site: SeededSite;
