@@ -19,7 +19,7 @@ export default defineConfig( {
 		  ]
 		: [ [ 'list' ] ],
 	use: {
-		baseURL: process.env.WP_BASE_URL ?? 'http://localhost',
+		baseURL: process.env.WP_BASE_URL || 'http://localhost',
 		trace: 'retain-on-failure',
 		screenshot: 'only-on-failure',
 	},

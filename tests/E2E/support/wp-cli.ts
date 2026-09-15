@@ -5,7 +5,7 @@ const WP_CLI_ON_THE_LOCAL_STACK =
 
 export function runWpCli( args: readonly string[], stdin = '' ): string {
 	const [ command, ...prefix ] = (
-		process.env.WP_CLI ?? WP_CLI_ON_THE_LOCAL_STACK
+		process.env.WP_CLI || WP_CLI_ON_THE_LOCAL_STACK
 	).split( /\s+/ );
 
 	return execFileSync( command, [ ...prefix, ...args ], {
