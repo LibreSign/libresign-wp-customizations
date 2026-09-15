@@ -7,11 +7,10 @@
 
 namespace LibreSign\WPCustomizations\Github;
 
+use LogicException;
+
 defined( 'ABSPATH' ) || exit;
 
-/**
- * The outcome of inspecting a delivery, with no answer sent yet.
- */
 final class WebhookDecision {
 
 	private const REJECT = 'reject';
@@ -19,168 +18,95 @@ final class WebhookDecision {
 	private const IGNORE = 'ignore';
 	private const DEPLOY = 'deploy';
 
-	/**
-	 * One of the constants above.
-	 *
-	 * @var string
-	 */
-	private $outcome;
+	private string $outcome;
+	private string $error_code    = '';
+	private string $error_message = '';
+	private int $http_status      = 0;
 
 	/**
-	 * Error code of a rejection.
-	 *
-	 * @var string
-	 */
-	private $error_code = '';
-
-	/**
-	 * Error message of a rejection.
-	 *
-	 * @var string
-	 */
-	private $error_message = '';
-
-	/**
-	 * HTTP status of a rejection.
-	 *
-	 * @var int
-	 */
-	private $http_status = 0;
-
-	/**
-	 * Why the delivery was ignored, and the details worth reporting.
-	 *
 	 * @var array<string, mixed>
 	 */
-	private $response_data = array();
+	private array $response_data = array();
 
-	/**
-	 * Run to deploy from.
-	 *
-	 * @var WorkflowRun|null
-	 */
-	private $workflow_run;
+	private ?WorkflowRun $workflow_run = null;
 
-	/**
-	 * @param string $outcome One of the class constants.
-	 */
-	private function __construct( $outcome ) {
+	private function __construct( string $outcome ) {
 		$this->outcome = $outcome;
 	}
 
-	/**
-	 * The delivery is not one this endpoint answers.
-	 *
-	 * @param string $error_code    Error code.
-	 * @param string $error_message Error message.
-	 * @param int    $http_status   HTTP status.
-	 * @return self
-	 */
-	public static function reject( $error_code, $error_message, $http_status ) {
+	public static function reject( string $error_code, string $error_message, int $http_status ): self {
 		$decision                = new self( self::REJECT );
-		$decision->error_code    = (string) $error_code;
-		$decision->error_message = (string) $error_message;
-		$decision->http_status   = (int) $http_status;
+		$decision->error_code    = $error_code;
+		$decision->error_message = $error_message;
+		$decision->http_status   = $http_status;
 
 		return $decision;
 	}
 
-	/**
-	 * GitHub is checking the endpoint is alive.
-	 *
-	 * @return self
-	 */
-	public static function pong() {
+	public static function pong(): self {
 		return new self( self::PONG );
 	}
 
 	/**
-	 * A delivery this endpoint accepts but has nothing to do about.
-	 *
-	 * @param string               $ignored_reason Why it was ignored.
-	 * @param array<string, mixed> $details        Details worth reporting back.
-	 * @return self
+	 * @param array<string, mixed> $details Details worth reporting back.
 	 */
-	public static function ignore( $ignored_reason, array $details = array() ) {
+	public static function ignore( string $ignored_reason, array $details = array() ): self {
 		$decision                = new self( self::IGNORE );
-		$decision->response_data = array_merge( array( 'reason' => (string) $ignored_reason ), $details );
+		$decision->response_data = array_merge( array( 'reason' => $ignored_reason ), $details );
 
 		return $decision;
 	}
 
-	/**
-	 * The site was just published and the fragments are stale.
-	 *
-	 * @param WorkflowRun $workflow_run Run that published the site.
-	 * @return self
-	 */
-	public static function deploy( WorkflowRun $workflow_run ) {
+	public static function deploy( WorkflowRun $workflow_run ): self {
 		$decision               = new self( self::DEPLOY );
 		$decision->workflow_run = $workflow_run;
 
 		return $decision;
 	}
 
-	/**
-	 * @return bool
-	 */
-	public function is_rejected() {
+	public function is_rejected(): bool {
 		return self::REJECT === $this->outcome;
 	}
 
-	/**
-	 * @return bool
-	 */
-	public function is_pong() {
+	public function is_pong(): bool {
 		return self::PONG === $this->outcome;
 	}
 
-	/**
-	 * @return bool
-	 */
-	public function is_ignored() {
+	public function is_ignored(): bool {
 		return self::IGNORE === $this->outcome;
 	}
 
-	/**
-	 * @return bool
-	 */
-	public function is_deploy() {
+	public function is_deploy(): bool {
 		return self::DEPLOY === $this->outcome;
 	}
 
-	/**
-	 * @return string
-	 */
-	public function code() {
+	public function code(): string {
 		return $this->error_code;
 	}
 
-	/**
-	 * @return string
-	 */
-	public function message() {
+	public function message(): string {
 		return $this->error_message;
 	}
 
-	/**
-	 * @return int
-	 */
-	public function status() {
+	public function status(): int {
 		return $this->http_status;
 	}
 
 	/**
 	 * @return array<string, mixed>
 	 */
-	public function data() {
+	public function data(): array {
 		return $this->response_data;
 	}
 
 	/**
-	 * @return WorkflowRun|null
+	 * @throws LogicException When the decision is not a deploy.
 	 */
-	public function workflow_run() {
+	public function workflow_run(): WorkflowRun {
+		if ( null === $this->workflow_run ) {
+			throw new LogicException( 'Only a deploy decision carries a workflow run.' );
+		}
+
 		return $this->workflow_run;
 	}
 }
