@@ -9,48 +9,19 @@ namespace LibreSign\WPCustomizations\Settings;
 
 defined( 'ABSPATH' ) || exit;
 
-/**
- * Encrypts and decrypts the deploy token and the webhook secret.
- *
- * The key is derived from the salts of the installation, so a database copied
- * to another installation carries values that cannot be read there.
- */
 final class Secret {
 
 	private const CIPHER = 'AES-256-CBC';
 
-	/**
-	 * Encryption key.
-	 *
-	 * @var string
-	 */
-	private $encryption_key;
+	private string $encryption_key;
+	private string $initialization_vector;
 
-	/**
-	 * Initialization vector.
-	 *
-	 * @var string
-	 */
-	private $initialization_vector;
-
-	/**
-	 * @param string $encryption_key        Encryption key.
-	 * @param string $initialization_vector Initialization vector.
-	 */
-	public function __construct( $encryption_key, $initialization_vector ) {
-		$this->encryption_key        = (string) $encryption_key;
-		$this->initialization_vector = (string) $initialization_vector;
+	public function __construct( string $encryption_key, string $initialization_vector ) {
+		$this->encryption_key        = $encryption_key;
+		$this->initialization_vector = $initialization_vector;
 	}
 
-	/**
-	 * Derive the key from the salts of the installation.
-	 *
-	 * @param string $auth_key         AUTH_KEY.
-	 * @param string $secure_auth_salt SECURE_AUTH_SALT.
-	 * @param string $nonce_salt       NONCE_SALT.
-	 * @return self
-	 */
-	public static function from_salts( $auth_key, $secure_auth_salt, $nonce_salt ) {
+	public static function from_salts( string $auth_key, string $secure_auth_salt, string $nonce_salt ): self {
 		return new self(
 			hash( 'sha256', $auth_key . $secure_auth_salt ),
 			substr( hash( 'sha256', $nonce_salt ), 0, 16 )
@@ -58,17 +29,13 @@ final class Secret {
 	}
 
 	/**
-	 * Encrypt a value for storage, leaving an already encrypted one untouched.
-	 *
-	 * WordPress runs the sanitize callback of an option again when
-	 * update_option() hands a value that does not exist yet to add_option(), so
-	 * encrypting has to be idempotent or the value is stored encrypted twice.
-	 *
-	 * @param string $plain_value Plain text value.
-	 * @return string
+	 * An already encrypted value is left as it is: WordPress runs the sanitize
+	 * callback of an option again when update_option() hands a value that does
+	 * not exist yet to add_option(), and encrypting twice stores a value that
+	 * nothing can read back.
 	 */
-	public function encrypt( $plain_value ) {
-		$plain_value = trim( (string) $plain_value );
+	public function encrypt( string $plain_value ): string {
+		$plain_value = trim( $plain_value );
 
 		if ( $this->decrypt( $plain_value ) !== $plain_value ) {
 			return $plain_value;
@@ -80,29 +47,48 @@ final class Secret {
 	}
 
 	/**
-	 * Read a stored value, returning it untouched when it is not encrypted.
-	 *
-	 * A value saved before the encryption existed, or by hand, is stored in
-	 * plain text and has to keep working.
-	 *
-	 * @param string $stored_value Stored value.
-	 * @return string
+	 * Read a stored value, returning it untouched when it cannot be deciphered,
+	 * so a value saved in plain text keeps working. Only for a value that stays
+	 * on the site: decrypt_or_discard() is the one for a value that is sent.
 	 */
-	public function decrypt( $stored_value ) {
-		$stored_value = trim( (string) $stored_value );
-
-		if ( '' === $stored_value ) {
-			return '';
-		}
-
-		$decoded_value = base64_decode( $stored_value, true );
+	public function decrypt( string $stored_value ): string {
+		$decoded_value = $this->decode( $stored_value );
 
 		if ( false === $decoded_value ) {
-			return $stored_value;
+			return trim( $stored_value );
 		}
 
+		return $this->decipher( $decoded_value ) ?? trim( $stored_value );
+	}
+
+	/**
+	 * A value that is not base64 was never encrypted and is used as it is. A
+	 * value that is base64 but does not decipher was encrypted with salts this
+	 * installation no longer has: it is not the value and nobody outside may
+	 * see it, so it is dropped instead of being sent.
+	 */
+	public function decrypt_or_discard( string $stored_value ): string {
+		$decoded_value = $this->decode( $stored_value );
+
+		if ( false === $decoded_value ) {
+			return trim( $stored_value );
+		}
+
+		return (string) $this->decipher( $decoded_value );
+	}
+
+	/**
+	 * @return string|false
+	 */
+	private function decode( string $stored_value ) {
+		$stored_value = trim( $stored_value );
+
+		return '' === $stored_value ? false : base64_decode( $stored_value, true );
+	}
+
+	private function decipher( string $decoded_value ): ?string {
 		$decrypted_value = openssl_decrypt( $decoded_value, self::CIPHER, $this->encryption_key, 0, $this->initialization_vector );
 
-		return false === $decrypted_value ? $stored_value : trim( $decrypted_value );
+		return false === $decrypted_value ? null : trim( $decrypted_value );
 	}
 }

@@ -29,4 +29,22 @@ final class PluginSecret {
 			)
 		);
 	}
+
+	/**
+	 * Encrypt the way another installation would, so this one cannot read it.
+	 *
+	 * @param string $value Plain text value.
+	 * @return string
+	 */
+	public static function encrypt_with_other_salts( $value ) {
+		return base64_encode(
+			openssl_encrypt(
+				$value,
+				'AES-256-CBC',
+				hash( 'sha256', 'another-auth-key' . 'another-secure-auth-salt' ),
+				0,
+				substr( hash( 'sha256', 'another-nonce-salt' ), 0, 16 )
+			)
+		);
+	}
 }
