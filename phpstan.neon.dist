@@ -12,7 +12,7 @@ parameters:
         - tests
     excludePaths:
         analyse:
-            - tests/E2E/support/*.php
+            - tests/E2E/support
     bootstrapFiles:
         - vendor/php-stubs/woocommerce-stubs/woocommerce-stubs.php
     scanDirectories:

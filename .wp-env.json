@@ -4,13 +4,13 @@
 	"plugins": [
 		".",
 		"https://downloads.wordpress.org/plugin/woocommerce.10.9.4.zip",
-		"pronamic/woocommerce-subscriptions#main"
+		"pronamic/woocommerce-subscriptions#v9.0.0"
 	],
 	"config": {
 		"WP_DEBUG": true,
 		"WP_DEBUG_DISPLAY": false
 	},
 	"mappings": {
-		"wp-content/mu-plugins/libresign-e2e-saved-payment-methods-gateway.php": "./tests/E2E/support/saved-payment-methods-gateway.php"
+		"wp-content/mu-plugins": "./tests/E2E/support/mu-plugins"
 	}
 }
