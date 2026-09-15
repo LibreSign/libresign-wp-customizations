@@ -10,31 +10,25 @@ namespace LibreSign\WPCustomizations\Account;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Which entries the customer sees, how they are named and which one is active.
- *
  * Every method takes the query vars of the request being rendered instead of
  * reading them, so none of this depends on the request.
  */
 final class Navigation {
 
 	/**
-	 * Customer entries kept, in display order.
-	 *
 	 * @return string[]
 	 */
-	public static function order() {
+	public static function order(): array {
 		return array( 'subscriptions', 'orders', 'payment-methods', 'edit-account', 'customer-logout' );
 	}
 
 	/**
-	 * Entries renamed because their meaning changed here.
-	 *
 	 * Whatever is left out keeps the WooCommerce label, and with it the
 	 * translation WooCommerce already ships for every locale.
 	 *
 	 * @return array<string, string>
 	 */
-	public static function labels() {
+	public static function labels(): array {
 		return array(
 			'subscriptions'   => __( 'My subscription', 'libresign-wp-customizations' ),
 			'orders'          => __( 'Invoices', 'libresign-wp-customizations' ),
@@ -43,11 +37,12 @@ final class Navigation {
 	}
 
 	/**
-	 * Detail endpoints neither core nor Subscriptions highlights, mapped to their entry.
+	 * Detail endpoints neither core nor Subscriptions highlights, mapped to the
+	 * entry they belong to.
 	 *
 	 * @return array<string, string[]>
 	 */
-	public static function aliases() {
+	public static function aliases(): array {
 		return array(
 			'subscriptions'   => array( 'subscription-payment-method' ),
 			'payment-methods' => array( 'edit-address' ),
@@ -55,12 +50,10 @@ final class Navigation {
 	}
 
 	/**
-	 * Reorder and relabel the navigation, skipping unregistered endpoints.
-	 *
 	 * @param array<string, string> $items Navigation handed over by WooCommerce.
 	 * @return array<string, string>
 	 */
-	public static function filter_items( array $items ) {
+	public static function filter_items( array $items ): array {
 		$labels = self::labels();
 		$menu   = array();
 
@@ -74,14 +67,11 @@ final class Navigation {
 	}
 
 	/**
-	 * Highlight the entry a detail screen belongs to.
-	 *
 	 * @param string[]             $classes    Classes of the entry.
-	 * @param string               $endpoint   Endpoint of the entry.
 	 * @param array<string, mixed> $query_vars Query vars of the request being rendered.
 	 * @return string[]
 	 */
-	public static function filter_item_classes( array $classes, $endpoint, array $query_vars ) {
+	public static function filter_item_classes( array $classes, string $endpoint, array $query_vars ): array {
 		if ( in_array( 'is-active', $classes, true ) ) {
 			return $classes;
 		}
@@ -103,14 +93,9 @@ final class Navigation {
 	}
 
 	/**
-	 * Page title of an endpoint whose navigation label was renamed.
-	 *
-	 * @param string               $title      Title WooCommerce would use.
-	 * @param string               $endpoint   Endpoint being rendered.
 	 * @param array<string, mixed> $query_vars Query vars of the request being rendered.
-	 * @return string
 	 */
-	public static function endpoint_title( $title, $endpoint, array $query_vars ) {
+	public static function endpoint_title( string $title, string $endpoint, array $query_vars ): string {
 		$labels = self::labels();
 
 		if ( ! isset( $labels[ $endpoint ] ) ) {

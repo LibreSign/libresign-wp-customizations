@@ -9,44 +9,21 @@ namespace LibreSign\WPCustomizations\Github;
 
 defined( 'ABSPATH' ) || exit;
 
-/**
- * When to ask GitHub for a deploy, and what to tell the editor afterwards.
- */
 final class DeployDispatch {
 
 	/**
-	 * Whether a post status transition asks for a deploy.
-	 *
 	 * Only an entry of the blog deploys the site, whether it is being published
 	 * or leaving the publish status.
-	 *
-	 * @param string $new_status Status the post moved to.
-	 * @param string $old_status Status the post came from.
-	 * @param string $post_type  Post type.
-	 * @return bool
 	 */
-	public static function triggers_deploy( $new_status, $old_status, $post_type ) {
+	public static function triggers_deploy( string $new_status, string $old_status, string $post_type ): bool {
 		return 'post' === $post_type && ( 'publish' === $new_status || 'publish' === $old_status );
 	}
 
-	/**
-	 * Notice shown when GitHub accepted the deploy.
-	 *
-	 * @param string $repository Repository the deploy was requested from.
-	 * @return string
-	 */
-	public static function success_message( $repository ) {
+	public static function success_message( string $repository ): string {
 		return 'Ação de deploy enviada com sucesso. Acompanhe <a href="https://github.com/' . $repository . '/actions" target="_blank">aqui</a>';
 	}
 
-	/**
-	 * Notice shown when GitHub refused the deploy.
-	 *
-	 * @param int    $code        HTTP status code returned by GitHub.
-	 * @param string $api_message Message carried by the response body.
-	 * @return string
-	 */
-	public static function failure_message( $code, $api_message ) {
+	public static function failure_message( int $code, string $api_message ): string {
 		return "Erro ao acionar deploy.<br />Código: <strong>{$code}</strong>.<br />Message: <strong>{$api_message}</strong>";
 	}
 }

@@ -10,10 +10,6 @@ namespace LibreSign\WPCustomizations\Tests\Integration\Includes;
 use WP_UnitTestCase;
 
 /**
- * Covers the wiring: the hooks registered and the query vars handed over to
- * LibreSign\WPCustomizations\Account\Navigation, which decides on its own what
- * the navigation looks like.
- *
  * WooCommerce is not loaded in the test suite, so what is asserted here is the
  * registration of the hooks and the behaviour of the callbacks when they are
  * called with the arguments WooCommerce passes them.

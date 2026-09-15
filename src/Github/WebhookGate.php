@@ -10,43 +10,20 @@ namespace LibreSign\WPCustomizations\Github;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Turns a delivery into the decision the endpoint acts on.
- *
  * Everything the endpoint refuses is refused here, so the endpoint itself only
- * has to turn a decision into a response.
+ * turns a decision into a response.
  */
 final class WebhookGate {
 
-	/**
-	 * Secret shared with the repository webhook.
-	 *
-	 * @var string
-	 */
-	private $secret;
+	private string $secret;
+	private SiteDeploy $site_deploy;
 
-	/**
-	 * The run that publishes the site.
-	 *
-	 * @var SiteDeploy
-	 */
-	private $site_deploy;
-
-	/**
-	 * @param string     $secret      Secret shared with the repository webhook.
-	 * @param SiteDeploy $site_deploy The run that publishes the site.
-	 */
-	public function __construct( $secret, SiteDeploy $site_deploy ) {
-		$this->secret      = (string) $secret;
+	public function __construct( string $secret, SiteDeploy $site_deploy ) {
+		$this->secret      = $secret;
 		$this->site_deploy = $site_deploy;
 	}
 
-	/**
-	 * What to do with a delivery.
-	 *
-	 * @param WebhookRequest $request Delivery received.
-	 * @return WebhookDecision
-	 */
-	public function decide( WebhookRequest $request ) {
+	public function decide( WebhookRequest $request ): WebhookDecision {
 		if ( '' === trim( $this->secret ) ) {
 			return WebhookDecision::reject(
 				'libresign_github_webhook_secret_missing',

@@ -9,18 +9,12 @@ namespace LibreSign\WPCustomizations\Subscription;
 
 defined( 'ABSPATH' ) || exit;
 
-/**
- * What to ask the customer before a status change goes through.
- */
 final class StatusChange {
 
 	/**
-	 * Strings of the confirmation prompt, or null when the change needs none.
-	 *
-	 * @param string $new_status Status the customer asked for.
 	 * @return array{question: string, confirm: string, dismiss: string}|null
 	 */
-	public static function confirmation_strings( $new_status ) {
+	public static function confirmation_strings( string $new_status ): ?array {
 		$strings = array(
 			'cancelled' => array(
 				'question' => __( 'Are you sure you want to cancel your subscription? This action cannot be undone.', 'libresign-wp-customizations' ),
