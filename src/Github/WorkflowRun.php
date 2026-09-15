@@ -9,114 +9,65 @@ namespace LibreSign\WPCustomizations\Github;
 
 defined( 'ABSPATH' ) || exit;
 
-/**
- * Reads the fields the site deploy cares about out of a workflow_run payload.
- */
 final class WorkflowRun {
 
 	/**
-	 * Parsed payload.
-	 *
-	 * @var array<string, mixed>
+	 * @var array<mixed>
 	 */
-	private $payload;
+	private array $payload;
 
 	/**
-	 * @param array<string, mixed> $payload Parsed payload.
+	 * @param array<mixed> $payload Parsed payload.
 	 */
 	private function __construct( array $payload ) {
 		$this->payload = $payload;
 	}
 
 	/**
-	 * @param array<string, mixed> $payload Parsed payload.
-	 * @return self
+	 * @param array<mixed> $payload Parsed payload.
 	 */
-	public static function from_payload( array $payload ) {
+	public static function from_payload( array $payload ): self {
 		return new self( $payload );
 	}
 
-	/**
-	 * Repository the run belongs to, as owner/name.
-	 *
-	 * @return string
-	 */
-	public function repository() {
+	public function repository(): string {
 		return $this->text( array( 'repository', 'full_name' ) );
 	}
 
-	/**
-	 * What happened to the run: requested, in_progress or completed.
-	 *
-	 * @return string
-	 */
-	public function action() {
+	public function action(): string {
 		return $this->text( array( 'action' ) );
 	}
 
-	/**
-	 * How the run ended: success, failure, cancelled and so on.
-	 *
-	 * @return string
-	 */
-	public function conclusion() {
+	public function conclusion(): string {
 		return $this->text( array( 'workflow_run', 'conclusion' ) );
 	}
 
-	/**
-	 * Branch the run was started from.
-	 *
-	 * @return string
-	 */
-	public function head_branch() {
+	public function head_branch(): string {
 		return $this->text( array( 'workflow_run', 'head_branch' ) );
 	}
 
-	/**
-	 * Commit the run was started from.
-	 *
-	 * @return string
-	 */
-	public function head_sha() {
+	public function head_sha(): string {
 		return $this->text( array( 'workflow_run', 'head_sha' ) );
 	}
 
-	/**
-	 * Address of the run on GitHub.
-	 *
-	 * @return string
-	 */
-	public function html_url() {
+	public function html_url(): string {
 		return $this->text( array( 'workflow_run', 'html_url' ) );
 	}
 
-	/**
-	 * When GitHub last touched the run.
-	 *
-	 * @return string
-	 */
-	public function updated_at() {
+	public function updated_at(): string {
 		return $this->text( array( 'workflow_run', 'updated_at' ) );
 	}
 
-	/**
-	 * Name of the workflow, preferring the name the run itself carries.
-	 *
-	 * @return string
-	 */
-	public function workflow_name() {
+	public function workflow_name(): string {
 		$run_name = $this->text( array( 'workflow_run', 'name' ) );
 
 		return '' === $run_name ? $this->text( array( 'workflow', 'name' ) ) : $run_name;
 	}
 
 	/**
-	 * Value at a path of the payload, as a trimmed string.
-	 *
 	 * @param string[] $field_path Keys to walk.
-	 * @return string
 	 */
-	private function text( array $field_path ) {
+	private function text( array $field_path ): string {
 		$field_value = $this->payload;
 
 		foreach ( $field_path as $field_name ) {

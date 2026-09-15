@@ -28,8 +28,7 @@ final class DeployDispatchTest extends TestCase {
 	}
 
 	/**
-	 * The post type only weighs in on the second half of the condition, which is
-	 * the current behaviour and a bug: publishing a page deploys the site too.
+	 * Publishing a page deploying the site is the current behaviour, and a bug.
 	 *
 	 * @return iterable<string, array{0: string, 1: string, 2: string, 3: bool}>
 	 */

@@ -2,10 +2,6 @@
 /**
  * GitHub webhook receiver for production site deploy synchronization.
  *
- * What a delivery means is decided by LibreSign\WPCustomizations\Github\WebhookGate;
- * what is left here is the endpoint, the settings it reads and the effects it
- * applies once the decision is taken.
- *
  * @package LibreSign_WP_Customizations
  */
 
@@ -99,8 +95,6 @@ function libresign_site_deploy_branch_name() {
 }
 
 /**
- * The run that publishes the site, as configured.
- *
  * @return SiteDeploy
  */
 function libresign_site_deploy() {
@@ -206,8 +200,8 @@ function libresign_receive_github_site_deploy_webhook( $request ) {
 		return libresign_github_site_webhook_ignored_response( $decision->data() );
 	}
 
-	$workflow_run         = $decision->workflow_run();
-	$delivery_id = (string) $request->get_header( 'x-github-delivery' );
+	$workflow_run = $decision->workflow_run();
+	$delivery_id  = (string) $request->get_header( 'x-github-delivery' );
 
 	if ( ! libresign_mark_github_delivery_once( $delivery_id ) ) {
 		return libresign_github_site_webhook_ignored_response(

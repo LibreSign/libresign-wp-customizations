@@ -6,9 +6,6 @@
  * endpoint page titles in sync with those labels, and merges the addresses
  * screen into the billing screen.
  *
- * The navigation itself is decided by LibreSign\WPCustomizations\Account\Navigation;
- * what is left here is the wiring into WooCommerce.
- *
  * @package LibreSign_WP_Customizations
  */
 
