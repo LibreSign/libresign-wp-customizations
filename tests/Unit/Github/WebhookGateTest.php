@@ -10,6 +10,7 @@ namespace LibreSign\WPCustomizations\Tests\Unit\Github;
 use LibreSign\WPCustomizations\Github\SiteDeploy;
 use LibreSign\WPCustomizations\Github\WebhookGate;
 use LibreSign\WPCustomizations\Github\WebhookRequest;
+use LogicException;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -206,6 +207,14 @@ final class WebhookGateTest extends TestCase {
 				'conclusion'    => 'success',
 			),
 		);
+	}
+
+	public function test_a_decision_that_is_not_a_deploy_has_no_workflow_run() {
+		$decision = self::gate()->decide( self::signed_delivery( 'push', '{"ref":"refs/heads/main"}' ) );
+
+		$this->expectException( LogicException::class );
+
+		$decision->workflow_run();
 	}
 
 	public function test_a_production_deploy_is_handed_over_with_the_run() {
