@@ -203,6 +203,15 @@ final class LibresignWpCustomizationsTest extends WP_UnitTestCase {
 		$this->assertSame( 'Bearer ', $this->github->args()['headers']['Authorization'] );
 	}
 
+	public function test_a_setting_of_zero_is_stored_instead_of_being_taken_for_a_blank_field() {
+		$this->register_plugin_settings();
+
+		update_option( 'libresign_github_webhook_secret', 'the-previous-secret' );
+		update_option( 'libresign_github_webhook_secret', '0' );
+
+		$this->assertSame( '0', libresign_github_webhook_secret() );
+	}
+
 	public function test_saving_an_empty_deploy_token_keeps_the_previous_one() {
 		update_option( 'libresign_github_deploy_token', 'placeholder' );
 		$this->register_plugin_settings();

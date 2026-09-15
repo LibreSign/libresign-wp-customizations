@@ -411,7 +411,7 @@ function libresign_config_page() {
 function libresign_encrypt_setting($value, $option) {
     $value = trim((string) $value);
 
-    if (empty($value)) {
+    if ('' === $value) {
         return get_option($option);
     }
 
