@@ -45,11 +45,12 @@ the plugin requires by hand.
 Every check is a Composer script:
 
 ```bash
-composer lint   # php -l on every file
-composer cs     # PHPCS
-composer stan   # PHPStan
-composer test   # PHPUnit
-composer ci     # all of the above, in this order
+composer lint      # php -l on every file
+composer cs        # PHPCS
+composer stan      # PHPStan
+composer test      # PHPUnit
+composer coverage  # PHPUnit with the coverage floor enforced
+composer ci        # all of the above, in this order
 ```
 
 ### Tests
@@ -98,6 +99,22 @@ WooCommerce loaded are covered by the browser tests instead.
 `tests/Unit/StructureTest.php` is what keeps that convention: a file of the
 plugin without the test named after it, and a test named after a file that no
 longer exists, both fail the suite.
+
+### Coverage
+
+`composer coverage` runs the suite with Xdebug collecting coverage and compares
+the result with `coverage-floor.txt`, which holds the line coverage the
+repository has already reached:
+
+```bash
+docker exec -w /var/www/html/wp-content/plugins/libresign-wp-customizations \
+  wordpress-docker-wordpress-1 composer coverage
+```
+
+The floor only goes up. Coverage below it fails, and so does coverage a full
+point above it, with the number to write in the file — a change that covers
+more is a change that raises the floor, and nothing silently gives the ground
+back.
 
 ### Browser tests
 
