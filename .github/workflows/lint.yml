@@ -1,4 +1,4 @@
-name: CI
+name: Lint
 
 on:
   push:
@@ -10,8 +10,8 @@ permissions:
   contents: read
 
 jobs:
-  static:
-    name: Static analysis (PHP ${{ matrix.php }})
+  lint:
+    name: Lint (PHP ${{ matrix.php }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -29,7 +29,3 @@ jobs:
       - uses: ramsey/composer-install@v3
 
       - run: composer lint
-
-      - run: composer cs
-
-      - run: composer stan
