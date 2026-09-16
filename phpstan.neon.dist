@@ -7,6 +7,7 @@ parameters:
     level: 5
     paths:
         - libresign-wp-customizations.php
+        - bin
         - includes
         - src
         - tests
