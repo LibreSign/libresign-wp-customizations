@@ -84,7 +84,9 @@ final class StructureTest extends TestCase {
 		}
 
 		if ( str_starts_with( $file, 'includes/' ) ) {
-			return array( 'tests/Integration/Includes/' . self::studly( basename( $file, '.php' ) ) . 'Test.php' );
+			$name = substr( $file, strlen( 'includes/' ), -strlen( '.php' ) );
+
+			return array( 'tests/Integration/Includes/' . self::studly( $name ) . 'Test.php' );
 		}
 
 		$name = substr( $file, strlen( 'src/' ), -strlen( '.php' ) );
@@ -138,18 +140,37 @@ final class StructureTest extends TestCase {
 	}
 
 	/**
-	 * @param string $file_name File name in kebab case.
+	 * @param string $path Path in kebab case, such as `admin/deploy-button`.
 	 * @return string
 	 */
-	private static function studly( $file_name ) {
-		return str_replace( ' ', '', ucwords( str_replace( '-', ' ', $file_name ) ) );
+	private static function studly( $path ) {
+		return self::each_segment(
+			$path,
+			static function ( $segment ) {
+				return str_replace( ' ', '', ucwords( str_replace( '-', ' ', $segment ) ) );
+			}
+		);
 	}
 
 	/**
-	 * @param string $class_name Class name in studly case.
+	 * @param string $path Path in studly case, such as `Admin/DeployButton`.
 	 * @return string
 	 */
-	private static function kebab( $class_name ) {
-		return strtolower( (string) preg_replace( '/(?<!^)[A-Z]/', '-$0', $class_name ) );
+	private static function kebab( $path ) {
+		return self::each_segment(
+			$path,
+			static function ( $segment ) {
+				return strtolower( (string) preg_replace( '/(?<!^)[A-Z]/', '-$0', $segment ) );
+			}
+		);
+	}
+
+	/**
+	 * @param string   $path   Path whose directories are kept as they are.
+	 * @param callable $rename What each segment becomes.
+	 * @return string
+	 */
+	private static function each_segment( $path, callable $rename ) {
+		return implode( '/', array_map( $rename, explode( '/', $path ) ) );
 	}
 }
