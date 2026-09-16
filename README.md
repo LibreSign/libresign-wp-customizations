@@ -116,6 +116,10 @@ point above it, with the number to write in the file — a change that covers
 more is a change that raises the floor, and nothing silently gives the ground
 back.
 
+The report of the previous run is dropped before the suite starts, so a run
+without a coverage driver — which PHPUnit only warns about — is caught instead
+of being graded on numbers it did not produce.
+
 ### Browser tests
 
 `tests/E2E/` mirrors `src/` the same way, with `.spec.ts` in place of
