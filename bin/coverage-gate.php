@@ -22,6 +22,9 @@ if ( 'cli' !== PHP_SAPI && 'phpdbg' !== PHP_SAPI ) {
  *
  * A run above the floor fails as loudly as a run below it: the floor only ever
  * goes up, and a covered line that nothing keeps covered is lost silently.
+ *
+ * `--reset` drops the previous report, so a suite that runs without a coverage
+ * driver writes nothing and is caught instead of graded on an older run.
  */
 final class CoverageGate {
 
@@ -31,11 +34,24 @@ final class CoverageGate {
 
 	private const SLACK = 1.0;
 
-	public static function run( string $root ): int {
+	/**
+	 * @param string   $root      Root of the repository.
+	 * @param string[] $arguments Arguments the command was called with.
+	 */
+	public static function run( string $root, array $arguments ): int {
 		$report = $root . '/' . self::REPORT;
 
+		if ( in_array( '--reset', $arguments, true ) ) {
+			return self::reset( $report );
+		}
+
 		if ( ! is_readable( $report ) ) {
-			return self::fail( sprintf( 'No coverage report at %s. Run `composer coverage`.', self::REPORT ) );
+			return self::fail(
+				sprintf(
+					'No coverage report at %s. The suite writes one only with a coverage driver enabled: XDEBUG_MODE=coverage, or pcov.',
+					self::REPORT
+				)
+			);
 		}
 
 		$metrics = self::metrics( $report );
@@ -80,6 +96,19 @@ final class CoverageGate {
 		}
 
 		fwrite( STDOUT, sprintf( 'Line coverage: %.2f%% (floor %.2f%%).%s', $covered, $floor, PHP_EOL ) );
+
+		return 0;
+	}
+
+	/**
+	 * Drops the report of the previous run.
+	 *
+	 * @param string $report Path of the clover report.
+	 */
+	private static function reset( string $report ): int {
+		if ( is_file( $report ) && ! unlink( $report ) ) {
+			return self::fail( sprintf( 'Cannot remove the report of the previous run at %s.', self::REPORT ) );
+		}
 
 		return 0;
 	}
@@ -133,4 +162,4 @@ final class CoverageGate {
 	}
 }
 
-exit( (int) CoverageGate::run( dirname( __DIR__ ) ) );
+exit( (int) CoverageGate::run( dirname( __DIR__ ), array_slice( $argv, 1 ) ) );
