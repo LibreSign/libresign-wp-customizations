@@ -95,6 +95,10 @@ reaching the network.
 WooCommerce is not installed in this suite, so the screens that only exist with
 WooCommerce loaded are covered by the browser tests instead.
 
+`tests/Unit/StructureTest.php` is what keeps that convention: a file of the
+plugin without the test named after it, and a test named after a file that no
+longer exists, both fail the suite.
+
 ### Browser tests
 
 `tests/E2E/` mirrors `src/` the same way, with `.spec.ts` in place of
