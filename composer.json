@@ -43,9 +43,12 @@
         "cs": "phpcs",
         "cs:fix": "phpcbf",
         "stan": "phpstan analyse",
-        "test": "phpunit",
-        "test:unit": "phpunit --testsuite unit",
-        "test:integration": "phpunit --testsuite integration",
+        "test": [
+            "@test:unit",
+            "@test:integration"
+        ],
+        "test:unit": "phpunit",
+        "test:integration": "phpunit -c phpunit-integration.xml.dist",
         "ci": [
             "@lint",
             "@cs",

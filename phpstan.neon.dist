@@ -9,6 +9,12 @@ parameters:
         - libresign-wp-customizations.php
         - includes
         - tests
+    excludePaths:
+        analyseAndScan:
+            # Answers the WordPress functions the plugin reaches while it loads,
+            # so the unit suite runs without WordPress. Analysing it would take
+            # these stand-ins for the real functions everywhere else.
+            - tests/bootstrap-unit.php
     bootstrapFiles:
         - vendor/php-stubs/woocommerce-stubs/woocommerce-stubs.php
     scanDirectories:
