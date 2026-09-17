@@ -146,6 +146,10 @@ function libresign_trigger_github_action_on_publish($new_status, $old_status, $p
     }
 
     $deploy_token = libresign_plugin_secret()->decrypt_or_discard(get_option('libresign_github_deploy_token'));
+    if ($deploy_token === '') {
+        return;
+    }
+
     $organizationRepository = get_option('libresign_github_deploy_organization_repository');
     $response = wp_remote_post('https://api.github.com/repos/' . $organizationRepository . '/dispatches', [
         'body'        => wp_json_encode([

@@ -41,6 +41,7 @@ final class LibresignWpCustomizationsTest extends WP_UnitTestCase {
 		do_action( 'rest_api_init', $wp_rest_server );
 
 		update_option( 'libresign_github_deploy_organization_repository', 'LibreSign/site' );
+		update_option( 'libresign_github_deploy_token', PluginSecret::encrypt( 'deploy-token' ) );
 	}
 
 	public function tear_down() {
@@ -200,7 +201,7 @@ final class LibresignWpCustomizationsTest extends WP_UnitTestCase {
 
 		self::factory()->post->create( array( 'post_status' => 'publish' ) );
 
-		$this->assertSame( 'Bearer ', $this->github->args()['headers']['Authorization'] );
+		$this->assertSame( array(), $this->github->urls() );
 	}
 
 	public function test_a_setting_of_zero_is_stored_instead_of_being_taken_for_a_blank_field() {
