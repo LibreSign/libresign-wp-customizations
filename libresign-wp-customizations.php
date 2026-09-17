@@ -124,7 +124,7 @@ add_action('wp_head', 'libresign_wp_add_noindex_meta_tag');
  * Deploy the site after change the status of post
  */
 function libresign_trigger_github_action_on_publish($new_status, $old_status, $post) {
-    if ($new_status === 'publish' || $old_status === 'publish' && $post->post_type === 'post') {
+    if ($post->post_type === 'post' && ($new_status === 'publish' || $old_status === 'publish')) {
         $encripted = get_option('libresign_github_deploy_token');
         $key = hash('sha256', AUTH_KEY . SECURE_AUTH_SALT);
         $iv = substr(hash('sha256', NONCE_SALT), 0, 16);

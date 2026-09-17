@@ -120,13 +120,7 @@ final class LibresignWpCustomizationsTest extends WP_UnitTestCase {
 		$this->assertSame( array(), $this->queued_deploy_notices() );
 	}
 
-	/**
-	 * The condition reads `$new_status === 'publish' || $old_status === 'publish' && $post->post_type === 'post'`,
-	 * and && binds tighter than ||, so the post type is only considered when a
-	 * published entry leaves the publish status. Anything else being published
-	 * dispatches a site deploy.
-	 */
-	public function test_publishing_any_post_type_dispatches_the_site_deploy() {
+	public function test_publishing_a_page_does_not_dispatch_anything() {
 		$this->github->answer_with( FakeHttp::response( 204 ) );
 
 		self::factory()->post->create(
@@ -136,7 +130,8 @@ final class LibresignWpCustomizationsTest extends WP_UnitTestCase {
 			)
 		);
 
-		$this->assertCount( 1, $this->github->urls() );
+		$this->assertSame( array(), $this->github->urls() );
+		$this->assertSame( array(), $this->queued_deploy_notices() );
 	}
 
 	public function test_trashing_a_published_page_does_not_dispatch_anything() {
