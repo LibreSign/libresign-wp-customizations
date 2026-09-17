@@ -63,6 +63,32 @@ function libresign_decrypt_plugin_secret( $value ) {
 }
 
 /**
+ * Encrypt a plugin option value, leaving an already encrypted one untouched.
+ *
+ * WordPress runs the sanitize callback of an option again when update_option()
+ * hands a value that does not exist yet to add_option(), so encrypting has to
+ * be idempotent or the value is stored encrypted twice.
+ *
+ * @param string $value Plain text value.
+ * @return string
+ */
+function libresign_encrypt_plugin_secret( $value ) {
+	$value = trim( (string) $value );
+	if ( '' === $value ) {
+		return '';
+	}
+
+	if ( libresign_decrypt_plugin_secret( $value ) !== $value ) {
+		return $value;
+	}
+
+	$key = hash( 'sha256', AUTH_KEY . SECURE_AUTH_SALT );
+	$iv  = substr( hash( 'sha256', NONCE_SALT ), 0, 16 );
+
+	return base64_encode( openssl_encrypt( $value, 'AES-256-CBC', $key, 0, $iv ) );
+}
+
+/**
  * Resolve the configured GitHub webhook secret.
  *
  * @return string

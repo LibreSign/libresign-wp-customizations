@@ -176,28 +176,22 @@ final class LibresignWpCustomizationsTest extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Current behaviour, and a bug: update_option() sanitizes the value and,
-	 * when the option does not exist yet, hands it to add_option(), which
-	 * sanitizes it again. The token is therefore encrypted twice on the very
-	 * first save, so the dispatch goes out carrying the encrypted token, which
-	 * GitHub cannot read, until it is saved a second time.
-	 *
-	 * Fixing the double sanitizing turns this test red: replace it with the
-	 * round trip of the test above, which is what the behaviour becomes.
+	 * A token saved on a site that never had one goes through add_option(),
+	 * which sanitizes the already sanitized value a second time, so it is only
+	 * stored encrypted once because the encryption is idempotent.
 	 */
-	public function test_a_token_saved_for_the_first_time_is_encrypted_twice() {
+	public function test_a_token_saved_for_the_first_time_is_stored_encrypted() {
 		delete_option( 'libresign_github_deploy_token' );
 		$this->register_plugin_settings();
 
 		update_option( 'libresign_github_deploy_token', 'a-personal-access-token' );
 
+		$this->assertNotSame( 'a-personal-access-token', get_option( 'libresign_github_deploy_token' ) );
+
 		$this->github->answer_with( FakeHttp::response( 204 ) );
 		self::factory()->post->create( array( 'post_status' => 'publish' ) );
 
-		$this->assertSame(
-			'Bearer ' . PluginSecret::encrypt( 'a-personal-access-token' ),
-			$this->github->args()['headers']['Authorization']
-		);
+		$this->assertSame( 'Bearer a-personal-access-token', $this->github->args()['headers']['Authorization'] );
 	}
 
 	public function test_saving_an_empty_deploy_token_keeps_the_previous_one() {

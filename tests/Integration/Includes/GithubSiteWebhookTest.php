@@ -8,7 +8,6 @@
 namespace LibreSign\WPCustomizations\Tests\Integration\Includes;
 
 use LibreSign\WPCustomizations\Tests\Support\FakeHttp;
-use LibreSign\WPCustomizations\Tests\Support\PluginSecret;
 use LibreSign\WPCustomizations\Tests\Support\RegistersPluginSettings;
 use WP_Error;
 use WP_REST_Request;
@@ -363,23 +362,18 @@ final class GithubSiteWebhookTest extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Current behaviour, and a bug: update_option() sanitizes the value and,
-	 * when the option does not exist yet, hands it to add_option(), which
-	 * sanitizes it again. A secret saved on a site that never had one is
-	 * therefore encrypted twice, so decrypting it once returns the encrypted
-	 * secret, and every delivery GitHub signs with it is answered with an
-	 * invalid signature until the secret is saved again.
-	 *
-	 * Fixing the double sanitizing turns this test red: replace it with the
-	 * round trip of the test above, which is what the behaviour becomes.
+	 * A secret saved on a site that never had one goes through add_option(),
+	 * which sanitizes the already sanitized value a second time, so it is only
+	 * stored encrypted once because the encryption is idempotent.
 	 */
-	public function test_a_secret_saved_for_the_first_time_is_encrypted_twice() {
+	public function test_a_secret_saved_for_the_first_time_is_stored_encrypted() {
 		delete_option( 'libresign_github_webhook_secret' );
 		$this->register_plugin_settings();
 
 		update_option( 'libresign_github_webhook_secret', 'saved-from-the-form' );
 
-		$this->assertSame( PluginSecret::encrypt( 'saved-from-the-form' ), libresign_github_webhook_secret() );
+		$this->assertNotSame( 'saved-from-the-form', get_option( 'libresign_github_webhook_secret' ) );
+		$this->assertSame( 'saved-from-the-form', libresign_github_webhook_secret() );
 	}
 
 	public function test_saving_an_empty_secret_keeps_the_previous_one() {

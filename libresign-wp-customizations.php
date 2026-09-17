@@ -390,12 +390,8 @@ add_action('admin_init', function () {
     register_setting('libresign_settings_group', 'libresign_github_deploy_token', [
         'type' => 'string',
         'sanitize_callback' => function ($value) {
-            if (!empty(trim($value))) {
-                $key = hash('sha256', AUTH_KEY . SECURE_AUTH_SALT);
-                $iv = substr(hash('sha256', NONCE_SALT), 0, 16);
-                return base64_encode(openssl_encrypt($value, 'AES-256-CBC', $key, 0, $iv));
-            }
-            return get_option('libresign_github_deploy_token');
+            $encrypted = libresign_encrypt_plugin_secret($value);
+            return '' === $encrypted ? get_option('libresign_github_deploy_token') : $encrypted;
         },
     ]);
     register_setting('libresign_settings_group', 'libresign_github_deploy_organization_repository', [
@@ -405,12 +401,8 @@ add_action('admin_init', function () {
     register_setting('libresign_settings_group', 'libresign_github_webhook_secret', [
         'type' => 'string',
         'sanitize_callback' => function ($value) {
-            if (!empty(trim($value))) {
-                $key = hash('sha256', AUTH_KEY . SECURE_AUTH_SALT);
-                $iv = substr(hash('sha256', NONCE_SALT), 0, 16);
-                return base64_encode(openssl_encrypt($value, 'AES-256-CBC', $key, 0, $iv));
-            }
-            return get_option('libresign_github_webhook_secret');
+            $encrypted = libresign_encrypt_plugin_secret($value);
+            return '' === $encrypted ? get_option('libresign_github_webhook_secret') : $encrypted;
         },
     ]);
     register_setting('libresign_settings_group', 'libresign_site_origin', [
