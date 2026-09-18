@@ -41,6 +41,7 @@ final class LibresignWpCustomizationsTest extends WP_UnitTestCase {
 		do_action( 'rest_api_init', $wp_rest_server );
 
 		update_option( 'libresign_github_deploy_organization_repository', 'LibreSign/site' );
+		update_option( 'libresign_github_deploy_token', PluginSecret::encrypt( 'deploy-token' ) );
 	}
 
 	public function tear_down() {
@@ -194,6 +195,24 @@ final class LibresignWpCustomizationsTest extends WP_UnitTestCase {
 		$this->assertSame( 'Bearer a-personal-access-token', $this->github->args()['headers']['Authorization'] );
 	}
 
+	public function test_a_deploy_token_that_cannot_be_decrypted_is_not_sent_to_github() {
+		update_option( 'libresign_github_deploy_token', PluginSecret::encrypt_with_other_salts( 'a-personal-access-token' ) );
+		$this->github->answer_with( FakeHttp::response( 204 ) );
+
+		self::factory()->post->create( array( 'post_status' => 'publish' ) );
+
+		$this->assertSame( array(), $this->github->urls() );
+	}
+
+	public function test_a_setting_of_zero_is_stored_instead_of_being_taken_for_a_blank_field() {
+		$this->register_plugin_settings();
+
+		update_option( 'libresign_github_webhook_secret', 'the-previous-secret' );
+		update_option( 'libresign_github_webhook_secret', '0' );
+
+		$this->assertSame( '0', libresign_github_webhook_secret() );
+	}
+
 	public function test_saving_an_empty_deploy_token_keeps_the_previous_one() {
 		update_option( 'libresign_github_deploy_token', 'placeholder' );
 		$this->register_plugin_settings();
@@ -322,6 +341,18 @@ final class LibresignWpCustomizationsTest extends WP_UnitTestCase {
 		libresign_maybe_flush_root_my_account_endpoints();
 
 		$this->assertSame( LIBRESIGN_WP_REWRITE_VERSION, get_option( 'libresign_root_my_account_rewrite_version' ) );
+	}
+
+	public function test_the_settings_link_comes_first_on_the_plugins_screen() {
+		$links = libresign_add_settings_link( array( '<a href="#">Deactivate</a>' ) );
+
+		$this->assertCount( 2, $links );
+		$this->assertStringContainsString( 'options-general.php?page=libresign-config', $links[0] );
+		$this->assertSame( '<a href="#">Deactivate</a>', $links[1] );
+	}
+
+	public function test_the_settings_are_registered_on_admin_init() {
+		$this->assertSame( 10, has_action( 'admin_init', 'libresign_register_settings' ) );
 	}
 
 	public function test_the_post_author_is_exposed_with_a_gravatar_hash() {
