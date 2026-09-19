@@ -116,6 +116,12 @@ workflow artifact — so coverage cannot drain away between releases. The rule i
 follows is `.octocov.yml`; the comparison only happens in CI, where the baseline
 lives.
 
+The same rule also holds a plain floor of 65%, because a comparison with no
+baseline passes: the artifact is written on `main` and expires, so a fresh
+branch and a repository that sat still both reach the check with nothing to
+compare against. The floor is the ground under that gap, not the ratchet — it
+stays where it is while coverage climbs.
+
 ### Browser tests
 
 `tests/E2E/` mirrors `src/` the same way, with `.spec.ts` in place of
