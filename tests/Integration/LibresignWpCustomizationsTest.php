@@ -378,4 +378,12 @@ final class LibresignWpCustomizationsTest extends WP_UnitTestCase {
 			$filtered->get_data()['author']
 		);
 	}
+
+	public function test_the_plugin_requires_the_wordpress_version_the_suite_runs_against() {
+		require_once ABSPATH . 'wp-admin/includes/plugin.php';
+
+		$data = get_plugin_data( dirname( __DIR__, 2 ) . '/libresign-wp-customizations.php', false, false );
+
+		$this->assertSame( '7.0', $data['RequiresWP'] );
+	}
 }

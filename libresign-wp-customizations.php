@@ -15,7 +15,7 @@
  * Version:           0.0.1
  * Author:            LibreCode
  * Author URI:        https://github.com/LibreSign
- * Requires at least: 6.7
+ * Requires at least: 7.0
  * Requires PHP:      8.1
  * Text Domain:       libresign-wp-customizations
  * License:           GPL-2.0+
