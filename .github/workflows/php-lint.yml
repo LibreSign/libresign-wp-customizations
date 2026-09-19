@@ -1,4 +1,4 @@
-name: Lint
+name: PHP Lint
 
 on:
   push:
@@ -10,8 +10,8 @@ permissions:
   contents: read
 
 jobs:
-  lint:
-    name: Lint (PHP ${{ matrix.php }})
+  php-lint:
+    name: PHP Lint (PHP ${{ matrix.php }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
