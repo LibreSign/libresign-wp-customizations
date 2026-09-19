@@ -9,6 +9,8 @@
  * @package LibreSign_WP_Customizations
  */
 
+use LibreSign\WPCustomizations\Account\Navigation;
+
 defined( 'ABSPATH' ) || exit;
 
 /**
@@ -21,50 +23,10 @@ function libresign_get_current_query_vars() {
 }
 
 /**
- * Customer navigation entries kept, in display order.
- */
-function libresign_get_account_menu_order() {
-    return array( 'subscriptions', 'orders', 'payment-methods', 'edit-account', 'customer-logout' );
-}
-
-/**
- * Navigation entries renamed because their meaning changed here.
- *
- * Whatever is left out keeps the WooCommerce label, and with it the translation
- * WooCommerce already ships for every locale.
- */
-function libresign_get_account_menu_labels() {
-    return array(
-        'subscriptions'   => __( 'My subscription', 'libresign-wp-customizations' ),
-        'orders'          => __( 'Invoices', 'libresign-wp-customizations' ),
-        'payment-methods' => __( 'Billing', 'libresign-wp-customizations' ),
-    );
-}
-
-/**
- * Detail endpoints neither core nor Subscriptions already highlights, mapped to their entry.
- */
-function libresign_get_account_menu_item_aliases() {
-    return array(
-        'subscriptions'   => array( 'subscription-payment-method' ),
-        'payment-methods' => array( 'edit-address' ),
-    );
-}
-
-/**
  * Reorder and relabel the My Account navigation, skipping unregistered endpoints.
  */
 function libresign_filter_account_menu_items( $items ) {
-    $labels = libresign_get_account_menu_labels();
-    $menu   = array();
-
-    foreach ( libresign_get_account_menu_order() as $endpoint ) {
-        if ( isset( $items[ $endpoint ] ) ) {
-            $menu[ $endpoint ] = isset( $labels[ $endpoint ] ) ? $labels[ $endpoint ] : $items[ $endpoint ];
-        }
-    }
-
-    return $menu;
+    return Navigation::filter_items( (array) $items );
 }
 add_filter( 'woocommerce_account_menu_items', 'libresign_filter_account_menu_items', 20 );
 
@@ -72,26 +34,7 @@ add_filter( 'woocommerce_account_menu_items', 'libresign_filter_account_menu_ite
  * Highlight the navigation entry a detail screen belongs to.
  */
 function libresign_filter_account_menu_item_classes( $classes, $endpoint ) {
-    if ( in_array( 'is-active', $classes, true ) ) {
-        return $classes;
-    }
-
-    $aliases = libresign_get_account_menu_item_aliases();
-
-    if ( empty( $aliases[ $endpoint ] ) ) {
-        return $classes;
-    }
-
-    $query_vars = libresign_get_current_query_vars();
-
-    foreach ( $aliases[ $endpoint ] as $alias ) {
-        if ( isset( $query_vars[ $alias ] ) ) {
-            $classes[] = 'is-active';
-            break;
-        }
-    }
-
-    return $classes;
+    return Navigation::filter_item_classes( (array) $classes, $endpoint, libresign_get_current_query_vars() );
 }
 add_filter( 'woocommerce_account_menu_item_classes', 'libresign_filter_account_menu_item_classes', 10, 2 );
 
@@ -99,25 +42,7 @@ add_filter( 'woocommerce_account_menu_item_classes', 'libresign_filter_account_m
  * Page title of an endpoint whose navigation label was renamed.
  */
 function libresign_filter_account_endpoint_title( $title, $endpoint ) {
-    $labels = libresign_get_account_menu_labels();
-
-    if ( ! isset( $labels[ $endpoint ] ) ) {
-        return $title;
-    }
-
-    $query_vars  = libresign_get_current_query_vars();
-    $page_number = isset( $query_vars[ $endpoint ] ) ? intval( $query_vars[ $endpoint ] ) : 0;
-
-    if ( $page_number < 2 ) {
-        return $labels[ $endpoint ];
-    }
-
-    return sprintf(
-        /* translators: 1: navigation label, 2: page number */
-        __( '%1$s (page %2$d)', 'libresign-wp-customizations' ),
-        $labels[ $endpoint ],
-        $page_number
-    );
+    return Navigation::endpoint_title( $title, $endpoint, libresign_get_current_query_vars() );
 }
 
 /**
@@ -144,7 +69,7 @@ function libresign_filter_view_order_endpoint_title( $title ) {
  * Keep the endpoint page titles in sync with the navigation labels.
  */
 function libresign_register_account_endpoint_titles() {
-    foreach ( array_keys( libresign_get_account_menu_labels() ) as $endpoint ) {
+    foreach ( array_keys( Navigation::labels() ) as $endpoint ) {
         add_filter( 'woocommerce_endpoint_' . $endpoint . '_title', 'libresign_filter_account_endpoint_title', 20, 2 );
     }
 
