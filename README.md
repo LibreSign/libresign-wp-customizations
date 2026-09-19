@@ -45,11 +45,12 @@ the plugin requires by hand.
 Every check is a Composer script:
 
 ```bash
-composer lint   # php -l on every file
-composer cs     # PHPCS
-composer stan   # PHPStan
-composer test   # PHPUnit
-composer ci     # all of the above, in this order
+composer lint      # php -l on every file
+composer cs        # PHPCS
+composer stan      # PHPStan
+composer test      # PHPUnit
+composer coverage  # PHPUnit with a coverage report for octocov
+composer ci        # all of the above, in this order
 ```
 
 ### Tests
@@ -94,6 +95,32 @@ reaching the network.
 
 WooCommerce is not installed in this suite, so the screens that only exist with
 WooCommerce loaded are covered by the browser tests instead.
+
+`tests/Unit/StructureTest.php` is what keeps that convention: a file of the
+plugin without the test named after it, and a test named after a file that no
+longer exists, both fail the suite.
+
+### Coverage
+
+`composer coverage` runs the suite with Xdebug collecting coverage and writes
+`tests/.coverage/clover.xml`:
+
+```bash
+docker exec -w /var/www/html/wp-content/plugins/libresign-wp-customizations \
+  wordpress-docker-wordpress-1 composer coverage
+```
+
+[octocov](https://github.com/k1LoW/octocov) reads that report in CI and fails
+the run when coverage is below the last report of `main`, which it keeps as a
+workflow artifact — so coverage cannot drain away between releases. The rule it
+follows is `.octocov.yml`; the comparison only happens in CI, where the baseline
+lives.
+
+The same rule also holds a plain floor of 65%, because a comparison with no
+baseline passes: the artifact is written on `main` and expires, so a fresh
+branch and a repository that sat still both reach the check with nothing to
+compare against. The floor is the ground under that gap, not the ratchet — it
+stays where it is while coverage climbs.
 
 ### Browser tests
 
