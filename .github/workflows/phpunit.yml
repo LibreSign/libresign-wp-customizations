@@ -72,6 +72,9 @@ jobs:
   coverage:
     name: Coverage
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
     services:
       mariadb:
         image: mariadb:11
@@ -103,3 +106,5 @@ jobs:
       - uses: ramsey/composer-install@v3
 
       - run: composer coverage
+
+      - uses: k1LoW/octocov-action@v1

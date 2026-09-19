@@ -49,7 +49,7 @@ composer lint      # php -l on every file
 composer cs        # PHPCS
 composer stan      # PHPStan
 composer test      # PHPUnit
-composer coverage  # PHPUnit with the coverage floor enforced
+composer coverage  # PHPUnit with a coverage report for octocov
 composer ci        # all of the above, in this order
 ```
 
@@ -102,23 +102,19 @@ longer exists, both fail the suite.
 
 ### Coverage
 
-`composer coverage` runs the suite with Xdebug collecting coverage and compares
-the result with `coverage-floor.txt`, which holds the line coverage the
-repository has already reached:
+`composer coverage` runs the suite with Xdebug collecting coverage and writes
+`tests/.coverage/clover.xml`:
 
 ```bash
 docker exec -w /var/www/html/wp-content/plugins/libresign-wp-customizations \
   wordpress-docker-wordpress-1 composer coverage
 ```
 
-The floor only goes up. Coverage below it fails, and so does coverage a full
-point above it, with the number to write in the file — a change that covers
-more is a change that raises the floor, and nothing silently gives the ground
-back.
-
-The report of the previous run is dropped before the suite starts, so a run
-without a coverage driver — which PHPUnit only warns about — is caught instead
-of being graded on numbers it did not produce.
+[octocov](https://github.com/k1LoW/octocov) reads that report in CI and fails
+the run when coverage is below the last report of `main`, which it keeps as a
+workflow artifact — so coverage cannot drain away between releases. The rule it
+follows is `.octocov.yml`; the comparison only happens in CI, where the baseline
+lives.
 
 ### Browser tests
 
