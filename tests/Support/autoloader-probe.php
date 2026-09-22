@@ -20,6 +20,8 @@ require dirname( __DIR__, 2 ) . '/src/Autoloader.php';
 
 LibreSign\WPCustomizations\Autoloader::register();
 
+global $argv;
+
 $libresign_loaded_from = array();
 
 foreach ( array_slice( $argv, 1 ) as $libresign_class_name ) {
