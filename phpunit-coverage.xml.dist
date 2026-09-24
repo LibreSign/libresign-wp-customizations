@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<!--
+    Both suites in a single run, so the report covers what the whole suite
+    reaches. The unit tests do not need WordPress, but they work with it loaded,
+    and a clover report cannot be merged across runs.
+-->
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="tests/bootstrap-integration.php"
+         colors="true"
+         failOnWarning="true"
+         failOnRisky="true"
+         beStrictAboutOutputDuringTests="true"
+         beStrictAboutTestsThatDoNotTestAnything="true"
+         convertDeprecationsToExceptions="false">
+    <testsuites>
+        <testsuite name="unit">
+            <directory suffix="Test.php">tests/Unit</directory>
+        </testsuite>
+        <testsuite name="integration">
+            <directory suffix="Test.php">tests/Integration</directory>
+        </testsuite>
+    </testsuites>
+    <coverage>
+        <include>
+            <file>libresign-wp-customizations.php</file>
+            <directory suffix=".php">includes</directory>
+            <directory suffix=".php">src</directory>
+        </include>
+    </coverage>
+</phpunit>
