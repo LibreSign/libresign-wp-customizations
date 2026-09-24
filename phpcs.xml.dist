@@ -4,6 +4,7 @@
 
     <file>.</file>
     <exclude-pattern>/vendor/*</exclude-pattern>
+    <exclude-pattern>/node_modules/*</exclude-pattern>
 
     <arg name="basepath" value="."/>
     <arg name="extensions" value="php"/>
@@ -38,6 +39,9 @@
                 <element value="LIBRESIGN"/>
             </property>
         </properties>
+        <!-- The test suite sets core globals, fires core hooks and defines the
+             constants the WordPress test bootstrap expects. -->
+        <exclude-pattern>/tests/*</exclude-pattern>
     </rule>
 
     <rule ref="Generic.PHP.DisallowShortOpenTag"/>

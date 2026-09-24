@@ -1,14 +1,24 @@
 includes:
     - vendor/szepeviktor/phpstan-wordpress/extension.neon
+    - vendor/phpstan/phpstan-phpunit/extension.neon
+    - vendor/phpstan/phpstan-phpunit/rules.neon
 
 parameters:
     level: 5
     paths:
         - libresign-wp-customizations.php
         - includes
+        - src
+        - tests
+    excludePaths:
+        analyse:
+            - tests/E2E/support
+        analyseAndScan:
+            # Answers the WordPress functions the plugin reaches while it loads,
+            # so the unit suite runs without WordPress. Analysing it would take
+            # these stand-ins for the real functions everywhere else.
+            - tests/bootstrap-unit.php
     bootstrapFiles:
         - vendor/php-stubs/woocommerce-stubs/woocommerce-stubs.php
-    ignoreErrors:
-        -
-            identifier: constant.notFound
-            message: '#^Constant (AUTH_KEY|SECURE_AUTH_SALT|NONCE_SALT) not found\.$#'
+    scanDirectories:
+        - vendor/wp-phpunit/wp-phpunit/includes
