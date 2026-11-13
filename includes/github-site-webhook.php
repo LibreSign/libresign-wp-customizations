@@ -47,7 +47,7 @@ function libresign_github_site_webhook_endpoint_url() {
  * @return string
  */
 function libresign_github_webhook_secret() {
-	return libresign_plugin_secret()->decrypt( get_option( 'libresign_github_webhook_secret', '' ) );
+	return libresign_plugin_secret()->decrypt_or_discard( get_option( 'libresign_github_webhook_secret', '' ) );
 }
 
 /**
