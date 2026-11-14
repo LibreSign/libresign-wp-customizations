@@ -39,7 +39,22 @@ require_once $libresign_wp_phpunit_dir . '/includes/functions.php';
 tests_add_filter(
 	'muplugins_loaded',
 	static function () {
+		require dirname( __DIR__ ) . '/vendor/test-plugins/woocommerce/woocommerce.php';
 		require dirname( __DIR__ ) . '/libresign-wp-customizations.php';
+	}
+);
+
+tests_add_filter(
+	'pre_option_active_plugins',
+	static function () {
+		return array( 'woocommerce/woocommerce.php' );
+	}
+);
+
+tests_add_filter(
+	'setup_theme',
+	static function () {
+		WC_Install::install();
 	}
 );
 
