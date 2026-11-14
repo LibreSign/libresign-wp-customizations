@@ -7,12 +7,12 @@
 
 namespace LibreSign\WPCustomizations\Tests\Integration\Includes;
 
+use LibreSign\WPCustomizations\Tests\Support\RedirectTrap;
 use WP_UnitTestCase;
 
 /**
- * WooCommerce is not loaded in the test suite, so what is asserted here is the
- * registration of the hooks and the behaviour of the callbacks when they are
- * called with the arguments WooCommerce passes them.
+ * The hooks are registered, and the callbacks behave as expected when
+ * WooCommerce calls them while rendering the account screens.
  */
 final class AccountNavigationTest extends WP_UnitTestCase {
 
@@ -32,6 +32,28 @@ final class AccountNavigationTest extends WP_UnitTestCase {
 	private function render_request_with( $query_vars ) {
 		global $wp;
 		$wp->query_vars = $query_vars;
+	}
+
+	/**
+	 * @return int
+	 */
+	private function go_to_the_account_page() {
+		$account_page_id = (int) self::factory()->post->create( array( 'post_type' => 'page' ) );
+		update_option( 'woocommerce_myaccount_page_id', $account_page_id );
+		$this->go_to( get_permalink( $account_page_id ) );
+
+		return $account_page_id;
+	}
+
+	/**
+	 * @param callable $render Callback that prints.
+	 * @return string
+	 */
+	private function output_of( callable $render ) {
+		ob_start();
+		$render();
+
+		return (string) ob_get_clean();
 	}
 
 	/**
@@ -139,5 +161,65 @@ final class AccountNavigationTest extends WP_UnitTestCase {
 			'<h2 class="libresign-account-section-title">Payment &lt;script&gt;alert(1)&lt;/script&gt; methods</h2>',
 			$html
 		);
+	}
+
+	public function test_an_invoice_is_titled_with_its_order_number() {
+		$order = wc_create_order();
+		$this->render_request_with( array( 'view-order' => (string) $order->get_id() ) );
+
+		$this->assertSame( 'Invoice #' . $order->get_order_number(), libresign_filter_view_order_endpoint_title( 'Order' ) );
+	}
+
+	public function test_a_missing_invoice_keeps_the_title_woocommerce_gave_it() {
+		$this->render_request_with( array( 'view-order' => '999999' ) );
+
+		$this->assertSame( 'Order', libresign_filter_view_order_endpoint_title( 'Order' ) );
+	}
+
+	public function test_a_screen_other_than_an_invoice_keeps_its_title() {
+		$this->render_request_with( array( 'orders' => '' ) );
+
+		$this->assertSame( 'Order', libresign_filter_view_order_endpoint_title( 'Order' ) );
+	}
+
+	public function test_the_payment_methods_table_has_a_heading() {
+		$this->assertSame(
+			'<h2 class="libresign-account-section-title">Payment methods</h2>',
+			$this->output_of( 'libresign_render_payment_methods_section_title' )
+		);
+	}
+
+	public function test_the_addresses_are_rendered_on_the_billing_screen() {
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'customer' ) ) );
+
+		$html = $this->output_of( 'libresign_render_addresses_on_payment_methods' );
+
+		$this->assertStringStartsWith( '<h2 class="libresign-account-section-title">Addresses</h2>', $html );
+		$this->assertStringContainsString( 'woocommerce-Addresses', $html );
+		$this->assertStringContainsString( 'These addresses are used on your invoices and subscription charges.', $html );
+	}
+
+	public function test_the_addresses_list_is_sent_to_the_billing_screen() {
+		$account_page_id = $this->go_to_the_account_page();
+		$this->render_request_with( array( 'edit-address' => '' ) );
+
+		$this->assertSame(
+			add_query_arg( 'payment-methods', '', get_permalink( $account_page_id ) ),
+			( new RedirectTrap() )->location_after( 'libresign_redirect_addresses_to_billing' )
+		);
+	}
+
+	public function test_editing_one_address_stays_on_its_screen() {
+		$this->go_to_the_account_page();
+		$this->render_request_with( array( 'edit-address' => 'billing' ) );
+
+		$this->assertNull( ( new RedirectTrap() )->location_after( 'libresign_redirect_addresses_to_billing' ) );
+	}
+
+	public function test_a_page_other_than_the_account_page_is_not_redirected() {
+		$this->go_to( get_permalink( self::factory()->post->create( array( 'post_type' => 'page' ) ) ) );
+		$this->render_request_with( array( 'edit-address' => '' ) );
+
+		$this->assertNull( ( new RedirectTrap() )->location_after( 'libresign_redirect_addresses_to_billing' ) );
 	}
 }

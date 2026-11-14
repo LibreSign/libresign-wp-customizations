@@ -11,14 +11,16 @@ use LibreSign\WPCustomizations\Tests\Support\FakeHttp;
 use LibreSign\WPCustomizations\Tests\Support\PluginSecret;
 use LibreSign\WPCustomizations\Tests\Support\RegistersPluginSettings;
 use WP_Error;
+use WPDieException;
 use WP_REST_Request;
 use WP_REST_Response;
 use WP_REST_Server;
 use WP_UnitTestCase;
 
 /**
- * The deploy dispatch, the REST version route, the noindex tag and the
- * settings storage, all against a real WordPress.
+ * The deploy dispatch and its notices, the REST version route, the noindex
+ * tag, the settings page and its storage, and the My Account routing, all
+ * against a real WordPress with WooCommerce.
  */
 final class LibresignWpCustomizationsTest extends WP_UnitTestCase {
 
@@ -31,8 +33,16 @@ final class LibresignWpCustomizationsTest extends WP_UnitTestCase {
 	 */
 	private $github;
 
+	/**
+	 * @var array<string, string>
+	 */
+	private $rewrite_rules_before;
+
 	public function set_up() {
 		parent::set_up();
+
+		global $wp_rewrite;
+		$this->rewrite_rules_before = $wp_rewrite->extra_rules_top;
 
 		$this->github = new FakeHttp();
 
@@ -45,8 +55,9 @@ final class LibresignWpCustomizationsTest extends WP_UnitTestCase {
 	}
 
 	public function tear_down() {
-		global $wp_rest_server;
-		$wp_rest_server = null;
+		global $wp_rest_server, $wp_rewrite;
+		$wp_rest_server              = null;
+		$wp_rewrite->extra_rules_top = $this->rewrite_rules_before;
 
 		parent::tear_down();
 	}
@@ -350,6 +361,254 @@ final class LibresignWpCustomizationsTest extends WP_UnitTestCase {
 			),
 			$filtered->get_data()['author']
 		);
+	}
+
+	/**
+	 * @param bool $as_front_page Whether the site opens on it.
+	 * @return int
+	 */
+	private function create_the_account_page( $as_front_page ) {
+		$account_page_id = (int) self::factory()->post->create(
+			array(
+				'post_type' => 'page',
+				'post_name' => 'my-account',
+			)
+		);
+		update_option( 'woocommerce_myaccount_page_id', $account_page_id );
+
+		if ( $as_front_page ) {
+			update_option( 'show_on_front', 'page' );
+			update_option( 'page_on_front', $account_page_id );
+		}
+
+		return $account_page_id;
+	}
+
+	/**
+	 * @param string $pattern Rewrite pattern.
+	 * @return string|null
+	 */
+	private function rewrite_target( $pattern ) {
+		global $wp_rewrite;
+
+		return $wp_rewrite->extra_rules_top[ $pattern ] ?? null;
+	}
+
+	/**
+	 * @return string
+	 */
+	private function render_deploy_notices() {
+		ob_start();
+		libresign_show_github_action_status_notice();
+
+		return (string) ob_get_clean();
+	}
+
+	/**
+	 * @return string
+	 */
+	private function render_settings_page() {
+		require_once ABSPATH . 'wp-admin/includes/template.php';
+
+		ob_start();
+		libresign_config_page();
+
+		return (string) ob_get_clean();
+	}
+
+	/**
+	 * @return string
+	 */
+	private function render_nextcloud_link() {
+		ob_start();
+		libresign_render_nextcloud_account_button();
+
+		return (string) ob_get_clean();
+	}
+
+	public function test_a_successful_deploy_is_shown_once_on_the_next_admin_screen() {
+		$this->github->answer_with( FakeHttp::response( 204 ) );
+		$post_id = self::factory()->post->create(
+			array(
+				'post_status' => 'publish',
+				'post_title'  => 'Release notes',
+			)
+		);
+
+		$html = $this->render_deploy_notices();
+
+		$this->assertStringContainsString( 'class="notice notice-success is-dismissible"', $html );
+		$this->assertStringContainsString( 'Post: <strong>Release notes</strong>', $html );
+		$this->assertStringContainsString( 'ID: ' . $post_id, $html );
+		$this->assertStringContainsString( 'Idioma: <strong>indefinido</strong>', $html );
+		$this->assertSame( '', $this->render_deploy_notices() );
+	}
+
+	public function test_a_refused_deploy_is_shown_as_an_error() {
+		$this->github->answer_with( FakeHttp::response( 401, (string) wp_json_encode( array( 'message' => 'Bad credentials' ) ) ) );
+		self::factory()->post->create( array( 'post_status' => 'publish' ) );
+
+		$html = $this->render_deploy_notices();
+
+		$this->assertStringContainsString( 'class="notice notice-error is-dismissible"', $html );
+		$this->assertStringContainsString( 'Bad credentials', $html );
+	}
+
+	public function test_an_admin_screen_without_a_deploy_shows_no_notice() {
+		$this->assertSame( '', $this->render_deploy_notices() );
+	}
+
+	public function test_the_settings_page_never_shows_the_stored_token() {
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
+		update_option( 'libresign_github_deploy_organization_repository', 'LibreSign/site"><script>' );
+
+		$html = $this->render_settings_page();
+
+		$this->assertStringNotContainsString( 'deploy-token', $html );
+		$this->assertStringNotContainsString( (string) get_option( 'libresign_github_deploy_token' ), $html );
+		$this->assertStringContainsString( 'placeholder="•••••••••• (altere aqui)"', $html );
+		$this->assertStringContainsString( 'value="LibreSign/site&quot;&gt;&lt;script&gt;"', $html );
+		$this->assertStringContainsString( "name='option_page' value='libresign_settings_group'", $html );
+	}
+
+	public function test_the_settings_page_has_no_placeholder_before_a_token_is_saved() {
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
+		delete_option( 'libresign_github_deploy_token' );
+
+		$this->assertStringContainsString( 'placeholder=""', $this->render_settings_page() );
+	}
+
+	public function test_the_settings_page_is_refused_to_who_cannot_manage_options() {
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'editor' ) ) );
+
+		$this->expectException( WPDieException::class );
+
+		libresign_config_page();
+	}
+
+	public function test_the_account_endpoints_are_served_at_the_root_when_the_account_page_is_the_front_page() {
+		$account_page_id = $this->create_the_account_page( true );
+
+		libresign_register_root_my_account_endpoints();
+		libresign_register_my_account_page_aliases();
+
+		$this->assertSame(
+			'index.php?page_id=' . $account_page_id . '&payment-methods=$matches[1]',
+			$this->rewrite_target( '^payment\-methods(?:/(.*))?/?$' )
+		);
+		$this->assertSame(
+			'index.php?page_id=' . $account_page_id . '&lost-password=$matches[1]',
+			$this->rewrite_target( '^lost\-password(?:/(.*))?/?$' )
+		);
+		$this->assertSame( 'index.php?page_id=' . $account_page_id, $this->rewrite_target( '^my-account/?$' ) );
+	}
+
+	public function test_the_account_endpoints_stay_under_the_account_page_when_it_is_not_the_front_page() {
+		$this->create_the_account_page( false );
+
+		libresign_register_root_my_account_endpoints();
+		libresign_register_my_account_page_aliases();
+
+		$this->assertNull( $this->rewrite_target( '^payment\-methods(?:/(.*))?/?$' ) );
+		$this->assertNull( $this->rewrite_target( '^my-account/?$' ) );
+	}
+
+	public function test_the_order_payment_and_receipt_screens_are_routed_to_the_checkout_page() {
+		$checkout_page_id = (int) self::factory()->post->create(
+			array(
+				'post_type' => 'page',
+				'post_name' => 'finalizar-compra',
+			)
+		);
+		update_option( 'woocommerce_checkout_page_id', $checkout_page_id );
+
+		libresign_register_checkout_endpoints();
+
+		$this->assertSame(
+			'index.php?page_id=' . $checkout_page_id . '&order-pay=$matches[1]',
+			$this->rewrite_target( '^finalizar\-compra/order\-pay(?:/(.*))?/?$' )
+		);
+		$this->assertSame(
+			'index.php?page_id=' . $checkout_page_id . '&order-received=$matches[1]',
+			$this->rewrite_target( '^finalizar\-compra/order\-received(?:/(.*))?/?$' )
+		);
+	}
+
+	public function test_no_checkout_route_is_registered_without_a_checkout_page() {
+		update_option( 'woocommerce_checkout_page_id', '' );
+		global $wp_rewrite;
+		$rules_before = $wp_rewrite->extra_rules_top;
+
+		libresign_register_checkout_endpoints();
+
+		$this->assertSame( $rules_before, $wp_rewrite->extra_rules_top );
+	}
+
+	public function test_an_account_endpoint_at_the_root_is_not_redirected_to_the_front_page() {
+		$this->create_the_account_page( true );
+		$this->go_to( home_url( '/payment-methods/' ) );
+
+		$this->assertFalse( libresign_disable_canonical_redirect_for_root_my_account_endpoints( home_url( '/' ), home_url( '/payment-methods/' ) ) );
+
+		libresign_prevent_root_my_account_endpoint_redirects();
+
+		$this->assertFalse( has_action( 'template_redirect', 'redirect_canonical' ) );
+		$this->assertFalse( has_action( 'template_redirect', 'wp_old_slug_redirect' ) );
+	}
+
+	public function test_any_other_page_keeps_its_canonical_redirect() {
+		$this->create_the_account_page( true );
+		$this->go_to( home_url( '/hello-world/' ) );
+
+		$this->assertSame( home_url( '/?p=1' ), libresign_disable_canonical_redirect_for_root_my_account_endpoints( home_url( '/?p=1' ), home_url( '/hello-world/' ) ) );
+
+		libresign_prevent_root_my_account_endpoint_redirects();
+
+		$this->assertSame( 10, has_action( 'template_redirect', 'redirect_canonical' ) );
+	}
+
+	public function test_an_account_endpoint_is_redirected_as_usual_when_the_account_page_is_not_the_front_page() {
+		$this->create_the_account_page( false );
+		$this->go_to( home_url( '/payment-methods/' ) );
+
+		$this->assertSame( home_url( '/' ), libresign_disable_canonical_redirect_for_root_my_account_endpoints( home_url( '/' ), home_url( '/payment-methods/' ) ) );
+	}
+
+	public function test_a_signed_in_customer_is_sent_to_nextcloud_from_the_account_screen() {
+		update_option( 'nextcloud_public_host', 'https://cloud.libresign.coop' );
+		$this->go_to( get_permalink( $this->create_the_account_page( false ) ) );
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'customer' ) ) );
+
+		$html = $this->render_nextcloud_link();
+
+		$this->assertStringContainsString( 'href="https://cloud.libresign.coop"', $html );
+		$this->assertStringContainsString( 'href="' . LIBRESIGN_FAQ_URL . '"', $html );
+	}
+
+	public function test_a_visitor_is_not_sent_to_nextcloud() {
+		update_option( 'nextcloud_public_host', 'https://cloud.libresign.coop' );
+		$this->go_to( get_permalink( $this->create_the_account_page( false ) ) );
+		wp_set_current_user( 0 );
+
+		$this->assertSame( '', $this->render_nextcloud_link() );
+	}
+
+	public function test_the_nextcloud_link_is_only_on_the_account_screen() {
+		update_option( 'nextcloud_public_host', 'https://cloud.libresign.coop' );
+		$this->create_the_account_page( false );
+		$this->go_to( get_permalink( self::factory()->post->create( array( 'post_type' => 'page' ) ) ) );
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'customer' ) ) );
+
+		$this->assertSame( '', $this->render_nextcloud_link() );
+	}
+
+	public function test_no_nextcloud_link_without_a_nextcloud_host() {
+		update_option( 'nextcloud_public_host', '' );
+		update_option( 'nextcloud_api_host', '' );
+		$this->go_to( get_permalink( $this->create_the_account_page( false ) ) );
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'customer' ) ) );
+
+		$this->assertSame( '', $this->render_nextcloud_link() );
 	}
 
 	public function test_the_plugin_requires_the_wordpress_version_the_suite_runs_against() {
