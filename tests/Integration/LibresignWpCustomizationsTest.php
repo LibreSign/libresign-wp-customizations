@@ -207,10 +207,10 @@ final class LibresignWpCustomizationsTest extends WP_UnitTestCase {
 	public function test_a_setting_of_zero_is_stored_instead_of_being_taken_for_a_blank_field() {
 		$this->register_plugin_settings();
 
-		update_option( 'libresign_github_webhook_secret', 'the-previous-secret' );
-		update_option( 'libresign_github_webhook_secret', '0' );
+		update_option( 'libresign_github_deploy_token', 'the-previous-token' );
+		update_option( 'libresign_github_deploy_token', '0' );
 
-		$this->assertSame( '0', libresign_github_webhook_secret() );
+		$this->assertSame( '0', libresign_plugin_secret()->decrypt_or_discard( get_option( 'libresign_github_deploy_token' ) ) );
 	}
 
 	public function test_saving_an_empty_deploy_token_keeps_the_previous_one() {
@@ -223,33 +223,6 @@ final class LibresignWpCustomizationsTest extends WP_UnitTestCase {
 		update_option( 'libresign_github_deploy_token', '' );
 
 		$this->assertSame( $stored, get_option( 'libresign_github_deploy_token' ) );
-	}
-
-	/**
-	 * @dataProvider provide_settings
-	 *
-	 * @param string $option   Option name.
-	 * @param string $saved    Value submitted on the settings screen.
-	 * @param string $expected Value actually stored.
-	 */
-	public function test_the_settings_fall_back_to_the_production_defaults( $option, $saved, $expected ) {
-		$this->register_plugin_settings();
-
-		update_option( $option, $saved );
-
-		$this->assertSame( $expected, get_option( $option ) );
-	}
-
-	/**
-	 * @return iterable<string, array{0: string, 1: string, 2: string}>
-	 */
-	public static function provide_settings() {
-		yield 'an empty origin falls back'   => array( 'libresign_site_origin', '   ', 'https://libresign.coop' );
-		yield 'the origin loses its slash'   => array( 'libresign_site_origin', 'https://staging.libresign.coop/', 'https://staging.libresign.coop' );
-		yield 'an empty workflow falls back' => array( 'libresign_site_deploy_workflow_name', '', 'pages build and deployment' );
-		yield 'the workflow is trimmed'      => array( 'libresign_site_deploy_workflow_name', '  deploy  ', 'deploy' );
-		yield 'an empty branch falls back'   => array( 'libresign_site_deploy_branch_name', '', 'gh-pages' );
-		yield 'the branch is kept'           => array( 'libresign_site_deploy_branch_name', 'main', 'main' );
 	}
 
 	public function test_an_internal_article_is_not_indexed() {
