@@ -8,6 +8,7 @@
 namespace LibreSign\WPCustomizations\Tests\Integration\Includes;
 
 use LibreSign\WPCustomizations\Tests\Support\FakeHttp;
+use LibreSign\WPCustomizations\Tests\Support\PluginSecret;
 use LibreSign\WPCustomizations\Tests\Support\RegistersPluginSettings;
 use WP_Error;
 use WP_REST_Request;
@@ -350,6 +351,22 @@ final class GithubSiteWebhookTest extends WP_UnitTestCase {
 		update_option( 'libresign_github_webhook_secret', 'plain-secret' );
 
 		$this->assertSame( 'plain-secret', libresign_github_webhook_secret() );
+	}
+
+	public function test_a_secret_that_cannot_be_decrypted_makes_the_endpoint_unavailable() {
+		$stored_secret = PluginSecret::encrypt_with_other_salts( self::SECRET );
+		update_option( 'libresign_github_webhook_secret', $stored_secret );
+
+		$request = new WP_REST_Request( 'POST', self::ROUTE );
+		$request->set_header( 'user-agent', 'GitHub-Hookshot/044aadd' );
+		$request->set_header( 'x-github-event', 'ping' );
+		$request->set_header( 'x-hub-signature-256', 'sha256=' . hash_hmac( 'sha256', '{}', $stored_secret ) );
+		$request->set_body( '{}' );
+
+		$response = rest_get_server()->dispatch( $request );
+
+		$this->assertSame( 503, $response->get_status() );
+		$this->assertSame( 'libresign_github_webhook_secret_missing', $response->get_data()['code'] );
 	}
 
 	public function test_a_secret_saved_over_an_existing_one_is_stored_encrypted() {
