@@ -86,8 +86,9 @@ filter (`tests/Support/FakeHttp.php`), which is WordPress' own extension point,
 and any request that is not answered that way fails the test instead of
 reaching the network.
 
-WooCommerce is not installed in this suite, so the screens that only exist with
-WooCommerce loaded are covered by the browser tests instead.
+WooCommerce is installed by Composer into `vendor/test-plugins/` and loaded
+before the plugin. WooCommerce Subscriptions is not, so the subscription status
+change is covered by the browser tests instead.
 
 `tests/Unit/StructureTest.php` is what keeps that convention: a file of the
 plugin without the test named after it, and a test named after a file that no
@@ -120,9 +121,9 @@ stays where it is while coverage climbs.
 `tests/E2E/` mirrors `src/` the same way, with `.spec.ts` in place of
 `Test.php`: `src/Account/Navigation.php` is covered end to end by
 `tests/E2E/Account/Navigation.spec.ts`. What lives here is what PHPUnit cannot
-reach without WooCommerce, the rewrite rules and a browser — the account
-navigation, the account screens served from the site root and the confirmation
-of a subscription status change.
+reach without a web server and a browser: the account navigation, the account
+screens served from the site root and the confirmation of a subscription status
+change.
 
 The suite runs against a WordPress that is already up, described by four
 variables:
