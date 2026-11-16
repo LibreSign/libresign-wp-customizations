@@ -800,6 +800,10 @@ function libresign_get_order_purchase_notes( $order ) {
     $purchase_notes = array();
 
     foreach ( $order->get_items() as $item ) {
+        if ( ! $item instanceof WC_Order_Item_Product ) {
+            continue;
+        }
+
         $product       = $item->get_product();
         $purchase_note = $product ? trim( (string) $product->get_purchase_note() ) : '';
 
@@ -868,7 +872,7 @@ function libresign_render_thank_you_next_steps( $order_id = 0 ) {
 
     foreach ( $purchase_notes as $purchase_note ) {
         echo '<div class="libresign-thankyou-next-steps__purchase-note" style="margin: 0 0 1rem 0;">';
-        echo wpautop( do_shortcode( wp_kses_post( $purchase_note ) ) );
+        echo wp_kses_post( wpautop( do_shortcode( $purchase_note ) ) );
         echo '</div>';
     }
 
