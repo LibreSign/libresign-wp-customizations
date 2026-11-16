@@ -98,8 +98,6 @@ add_action( 'plugins_loaded', function () {
     );
 } );
 
-require_once __DIR__ . '/includes/site-fragment-sync.php';
-require_once __DIR__ . '/includes/github-site-webhook.php';
 require_once __DIR__ . '/includes/account-navigation.php';
 
 
@@ -272,14 +270,6 @@ function libresign_config_page() {
             do_settings_sections('libresign_settings_group');
             $token = get_option('libresign_github_deploy_token');
             $repository = get_option('libresign_github_deploy_organization_repository');
-            $webhook_secret = get_option('libresign_github_webhook_secret');
-            $site_origin = get_option('libresign_site_origin', 'https://libresign.coop');
-            $workflow_name = get_option('libresign_site_deploy_workflow_name', 'pages build and deployment');
-            $branch_name = get_option('libresign_site_deploy_branch_name', 'gh-pages');
-            $webhook_endpoint = function_exists('libresign_github_site_webhook_endpoint_url')
-                ? libresign_github_site_webhook_endpoint_url()
-                : '';
-            $last_sync = get_option('libresign_site_fragment_last_sync');
             ?>
             <table class="form-table">
                 <tr valign="top">
@@ -324,81 +314,10 @@ function libresign_config_page() {
                             placeholder="Ex: LibreSign/site"
                             class="regular-text"
                         />
-                        <p class="description">Exemplo: <code>LibreSign/site</code>. Este valor também é usado para validar o repositório recebido pela webhook do GitHub.</p>
+                        <p class="description">Exemplo: <code>LibreSign/site</code>.</p>
                     </td>
                 </tr>
 
-                <tr valign="top">
-                    <th scope="row">Webhook de deploy do site</th>
-                    <td>
-                        <input
-                            type="text"
-                            value="<?php echo esc_attr($webhook_endpoint); ?>"
-                            class="regular-text code"
-                            readonly
-                        />
-                        <p class="description">Configure uma webhook de repositório no GitHub para o evento <code>workflow_run</code> usando esta URL. O plugin sincroniza fragmentos apenas quando o workflow configurado abaixo conclui com sucesso na branch <code>main</code>.</p>
-                        <?php if (is_array($last_sync) && !empty($last_sync['updated_at'])) : ?>
-                            <p class="description">Última sincronização: <strong><?php echo esc_html((string) $last_sync['updated_at']); ?></strong> (status: <strong><?php echo esc_html((string) ($last_sync['status'] ?? '')); ?></strong>).</p>
-                        <?php endif; ?>
-                    </td>
-                </tr>
-
-                <tr valign="top">
-                    <th scope="row">Segredo da webhook do GitHub</th>
-                    <td>
-                        <input
-                            type="password"
-                            name="libresign_github_webhook_secret"
-                            value=""
-                            placeholder="<?php echo $webhook_secret ? '•••••••••• (altere aqui)' : ''; ?>"
-                            class="regular-text"
-                        />
-                        <p class="description">Use o mesmo segredo configurado na webhook do repositório <code>LibreSign/site</code>.</p>
-                    </td>
-                </tr>
-
-                <tr valign="top">
-                    <th scope="row">Origem do site estático</th>
-                    <td>
-                        <input
-                            type="url"
-                            name="libresign_site_origin"
-                            value="<?php echo esc_attr((string) $site_origin); ?>"
-                            placeholder="https://libresign.coop"
-                            class="regular-text"
-                        />
-                        <p class="description">URL usada para buscar os fragmentos publicados em <code>/fragments/...</code> após o deploy de produção.</p>
-                    </td>
-                </tr>
-
-                <tr valign="top">
-                    <th scope="row">Workflow monitorado</th>
-                    <td>
-                        <input
-                            type="text"
-                            name="libresign_site_deploy_workflow_name"
-                            value="<?php echo esc_attr((string) $workflow_name); ?>"
-                            placeholder="pages build and deployment"
-                            class="regular-text"
-                        />
-                        <p class="description">Nome exato do workflow do GitHub que representa o deploy de produção. Use <code>pages build and deployment</code> para sincronizar apenas após o GitHub Pages estar ao vivo.</p>
-                    </td>
-                </tr>
-
-                <tr valign="top">
-                    <th scope="row">Branch monitorada</th>
-                    <td>
-                        <input
-                            type="text"
-                            name="libresign_site_deploy_branch_name"
-                            value="<?php echo esc_attr((string) $branch_name); ?>"
-                            placeholder="gh-pages"
-                            class="regular-text"
-                        />
-                        <p class="description">Branch esperada para o workflow monitorado. Use <code>gh-pages</code> para o workflow <code>pages build and deployment</code>.</p>
-                    </td>
-                </tr>
             </table>
             <?php submit_button('Salvar configurações'); ?>
         </form>
@@ -435,33 +354,6 @@ function libresign_register_settings() {
     register_setting('libresign_settings_group', 'libresign_github_deploy_organization_repository', [
         'type' => 'string',
         'sanitize_callback' => 'sanitize_text_field',
-    ]);
-    register_setting('libresign_settings_group', 'libresign_github_webhook_secret', [
-        'type' => 'string',
-        'sanitize_callback' => function ($value) {
-            return libresign_encrypt_setting($value, 'libresign_github_webhook_secret');
-        },
-    ]);
-    register_setting('libresign_settings_group', 'libresign_site_origin', [
-        'type' => 'string',
-        'sanitize_callback' => function ($value) {
-            $value = rtrim(esc_url_raw(trim((string) $value)), '/');
-            return '' === $value ? 'https://libresign.coop' : $value;
-        },
-    ]);
-    register_setting('libresign_settings_group', 'libresign_site_deploy_workflow_name', [
-        'type' => 'string',
-        'sanitize_callback' => function ($value) {
-            $value = trim(sanitize_text_field((string) $value));
-            return '' === $value ? 'pages build and deployment' : $value;
-        },
-    ]);
-    register_setting('libresign_settings_group', 'libresign_site_deploy_branch_name', [
-        'type' => 'string',
-        'sanitize_callback' => function ($value) {
-            $value = trim(sanitize_text_field((string) $value));
-            return '' === $value ? 'gh-pages' : $value;
-        },
     ]);
 }
 add_action('admin_init', 'libresign_register_settings');
