@@ -851,6 +851,18 @@ function libresign_render_thank_you_next_steps( $order_id = 0 ) {
         }
     }
 
+    libresign_print_thank_you_next_steps( $subscription_message, $purchase_notes, $account_url );
+}
+add_action( 'woocommerce_thankyou', 'libresign_render_thank_you_next_steps', 11 );
+
+/**
+ * Print the next steps block, or only the subscription notice when there is no step to offer.
+ *
+ * @param string   $subscription_message Notice from WooCommerce Subscriptions.
+ * @param string[] $purchase_notes       Purchase notes of the paid order.
+ * @param string   $account_url          Account page of the order owner, or empty.
+ */
+function libresign_print_thank_you_next_steps( $subscription_message, $purchase_notes, $account_url ) {
     if ( '' === $account_url && empty( $purchase_notes ) ) {
         libresign_print_thank_you_subscription_message( $subscription_message );
 
@@ -890,7 +902,6 @@ function libresign_render_thank_you_next_steps( $order_id = 0 ) {
 
     echo '</div>';
 }
-add_action( 'woocommerce_thankyou', 'libresign_render_thank_you_next_steps', 11 );
 
 /**
  * Resolve a subscription the current user is allowed to update to the given status, or null.

@@ -379,6 +379,66 @@ final class LibresignWpCustomizationsTest extends WP_UnitTestCase {
 		);
 	}
 
+	public function test_the_subscription_notice_is_held_and_printed_once_by_the_order_received_page() {
+		$filtered = apply_filters( 'woocommerce_subscriptions_thank_you_message', '<p>Your subscription is active.</p><script>alert(1)</script>' );
+
+		ob_start();
+		libresign_render_thank_you_next_steps();
+		$first = ob_get_clean();
+
+		ob_start();
+		libresign_render_thank_you_next_steps();
+		$second = ob_get_clean();
+
+		$this->assertSame( '', $filtered );
+		$this->assertSame( '<p>Your subscription is active.</p>alert(1)', $first );
+		$this->assertSame( '', $second );
+	}
+
+	public function test_the_next_steps_show_the_notice_the_purchase_notes_and_the_dashboard_link() {
+		ob_start();
+		libresign_print_thank_you_next_steps(
+			'<p>Your subscription is active.</p>',
+			array( "Open the app.\n\nUse your store login.<script>alert(1)</script>" ),
+			'https://example.org/my-account/?a="b"'
+		);
+		$html = ob_get_clean();
+
+		$this->assertStringContainsString( 'What would you like to do next?', $html );
+		$this->assertStringContainsString( '<div class="libresign-thankyou-next-steps__notice" style="margin: 0 0 1rem 0;"><p>Your subscription is active.</p></div>', $html );
+		$this->assertStringContainsString( "<p>Open the app.</p>\n<p>Use your store login.alert(1)</p>", $html );
+		$this->assertStringContainsString( 'href="https://example.org/my-account/?a=b"', $html );
+		$this->assertStringContainsString( 'Go to your dashboard', $html );
+		$this->assertStringNotContainsString( '<script>', $html );
+	}
+
+	public function test_the_next_steps_without_a_dashboard_link_list_only_the_purchase_notes() {
+		ob_start();
+		libresign_print_thank_you_next_steps( '', array( 'Open the app.' ), '' );
+		$html = ob_get_clean();
+
+		$this->assertStringContainsString( '<p>Open the app.</p>', $html );
+		$this->assertStringNotContainsString( 'libresign-thankyou-next-steps__notice', $html );
+		$this->assertStringNotContainsString( 'Go to your dashboard', $html );
+	}
+
+	public function test_without_next_steps_only_the_subscription_notice_is_printed() {
+		ob_start();
+		libresign_print_thank_you_next_steps( '<p>Your subscription is active.</p>', array(), '' );
+		$with_notice = ob_get_clean();
+
+		ob_start();
+		libresign_print_thank_you_next_steps( '', array(), '' );
+		$without_notice = ob_get_clean();
+
+		$this->assertSame( '<p>Your subscription is active.</p>', $with_notice );
+		$this->assertSame( '', $without_notice );
+	}
+
+	public function test_the_purchase_notes_stay_in_the_order_table_outside_the_order_received_page() {
+		$this->assertSame( array( 'completed', 'processing' ), apply_filters( 'woocommerce_purchase_note_order_statuses', array( 'completed', 'processing' ) ) );
+	}
+
 	public function test_the_plugin_requires_the_wordpress_version_the_suite_runs_against() {
 		require_once ABSPATH . 'wp-admin/includes/plugin.php';
 
