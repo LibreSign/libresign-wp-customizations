@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="tests/bootstrap-unit.php"
+         colors="true"
+         failOnWarning="true"
+         failOnRisky="true"
+         beStrictAboutOutputDuringTests="true"
+         beStrictAboutTestsThatDoNotTestAnything="true"
+         convertDeprecationsToExceptions="false">
+    <testsuites>
+        <testsuite name="unit">
+            <directory suffix="Test.php">tests/Unit</directory>
+        </testsuite>
+    </testsuites>
+    <coverage>
+        <include>
+            <file>libresign-wp-customizations.php</file>
+            <directory suffix=".php">includes</directory>
+            <directory suffix=".php">src</directory>
+        </include>
+    </coverage>
+</phpunit>

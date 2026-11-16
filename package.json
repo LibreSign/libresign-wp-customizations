@@ -1,0 +1,16 @@
+{
+	"name": "libresign-wp-customizations",
+	"private": true,
+	"license": "GPL-2.0-or-later",
+	"description": "Browser tests for the LibreSign WordPress customizations",
+	"scripts": {
+		"test:e2e": "playwright test",
+		"test:e2e:ui": "playwright test --ui",
+		"env:start": "wp-env start",
+		"env:stop": "wp-env stop"
+	},
+	"devDependencies": {
+		"@playwright/test": "^1.50.0",
+		"@wordpress/env": "^10.16.0"
+	}
+}
